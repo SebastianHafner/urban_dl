@@ -1,6 +1,23 @@
 import ee
 from gee.utils import compute_time_series_metrics
 
+
+# getting list of feature names based on input parameters
+def get_feature_names(polarizations: list, metrics: list, asc_desc: str = 'both'):
+
+    if asc_desc == 'both':
+        orbits = ['asc', 'desc']
+    else:
+        orbits = [asc_desc]
+
+    names = []
+    for orbit in orbits:
+        for pol in polarizations:
+            for metric in metrics:
+                names.append(f'{pol}_{orbit}_{metric}')
+    return names
+
+
 # retrieve sentinel-2 data for city
 def get_time_series_features(bbox: ee.Geometry, from_date: str, to_date: str, orbit_numbers: dict,
                              polarizations: list, metrics: list, include_count: bool = False) -> ee.Image:

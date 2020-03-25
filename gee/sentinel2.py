@@ -5,6 +5,13 @@ from gee.utils import compute_time_series_metrics
 __SPECTRAL_BANDS__ = ['Blue', 'Green', 'Red', 'RedEdge1', 'RedEdge2', 'RedEdge3', 'NIR', 'RedEdge4', 'SWIR1', 'SWIR2']
 
 
+# getting list of feature names based on input parameters
+def get_feature_names(bands: list, indices: list, metrics: list):
+    band_names = [f'{band}_{metric}' for band in bands for metric in metrics]
+    index_names = [f'{index}_{metric}' for index in indices for metric in metrics]
+    return band_names + index_names
+
+
 # getting sentinel-2 band name
 def get_band_name(band: str) -> str:
     band_names = ee.Dictionary({'Blue': 'B2', 'Green': 'B3', 'Red': 'B4', 'RedEdge1': 'B5', 'RedEdge2': 'B6',

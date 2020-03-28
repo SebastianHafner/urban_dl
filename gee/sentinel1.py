@@ -49,7 +49,6 @@ def get_time_series_features(bbox: ee.Geometry, from_date: str, to_date: str, or
         # separating time series according to selected orbit numbers
         orbit_key = 'asc' if orbit == 'ASCENDING' else 'desc'
         if len(orbit_numbers.get(orbit_key)) > 0:
-
             orbit_features = []
             for orbit_number in orbit_numbers.get(orbit_key):
 
@@ -62,14 +61,20 @@ def get_time_series_features(bbox: ee.Geometry, from_date: str, to_date: str, or
         else:
             orbit_features = ee.Image.cat(len(polarizations) * len(metrics) * [ee.Image(0)])
 
-        # debug0_names = orbit_features.bandNames().getInfo()
+        debug0_names = orbit_features.bandNames().getInfo()
+
         # including orbit in feature names
         old_names = [f'{pol}_{metric}' for pol in polarizations for metric in metrics]
         new_names = [f'{pol}_{orbit_key}_{metric}' for pol in polarizations for metric in metrics]
         orbit_features = orbit_features.select(old_names, new_names)
+
+        debug1_names = orbit_features.bandNames().getInfo()
+
         features.append(orbit_features)
 
     features = ee.Image.cat(features)
+
+    debug3_names = features.bandNames().getInfo()
 
     if include_count:
         features = features.addBands(s1.reduce(ee.Reducer.count()).rename('count'))

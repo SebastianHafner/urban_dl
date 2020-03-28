@@ -1,37 +1,62 @@
 import ee
 
 
-def sentinel_to_drive(img: ee.Image, bbox: ee.Geometry, file_name, drive_folder, scale: int = 10,
-                      crs: str = 'EPSG:4326', patch_size: int = 256):
-    task = ee.batch.Export.image.toDrive(
-        image=img,
-        region=bbox.getInfo()['coordinates'],
-        description='PythonExport',
-        folder=drive_folder,
-        fileNamePrefix=file_name,
-        scale=scale,
-        crs=crs,
-        maxPixels=1e10,
-        # fileDimensions=patch_size,
-        fileFormat='GeoTIFF'
-    )
+def to_drive(img: ee.Image, bbox: ee.Geometry, folder: str, file_name: str, patch_size: int = 0,
+             scale: int = 10, crs: str = 'EPSG:4326'):
+    if patch_size == 0:
+        task = ee.batch.Export.image.toDrive(
+            image=img,
+            region=bbox.getInfo()['coordinates'],
+            description='PythonToDriveExport',
+            folder=folder,
+            fileNamePrefix=file_name,
+            scale=scale,
+            crs=crs,
+            maxPixels=1e10,
+            fileFormat='GeoTIFF'
+        )
+    else:
+        task = ee.batch.Export.image.toDrive(
+            image=img,
+            region=bbox.getInfo()['coordinates'],
+            description='PythonToDriveExport',
+            folder=folder,
+            fileNamePrefix=file_name,
+            scale=scale,
+            crs=crs,
+            maxPixels=1e10,
+            fileDimensions=patch_size,
+            fileFormat='GeoTIFF'
+        )
     task.start()
-    task.status()
 
 
-def sentinel_to_cloud():
-    pass
+def to_cloud(img: ee.Image, bbox: ee.Geometry, bucket: str, folder: str, file_name: str, patch_size: int = 0,
+             scale: int = 10, crs: str = 'EPSG:4326'):
 
-
-def label_to_drive():
-    pass
-
-
-def label_to_cloud():
-    pass
-
-def download_metadata_to_drive():
-    pass
-
-def split_metadata_to_drive():
-    pass
+    if patch_size == 0:
+        task = ee.batch.Export.image.toCloudStorage(
+            image=img,
+            region=bbox.getInfo()['coordinates'],
+            description='PythonToCloudExport',
+            bucket=bucket,
+            fileNamePrefix= f'{folder}/{file_name}',
+            scale=scale,
+            crs=crs,
+            maxPixels=1e10,
+            fileFormat='GeoTIFF'
+        )
+    else:
+        task = ee.batch.Export.image.toCloudStorage(
+            image=img,
+            region=bbox.getInfo()['coordinates'],
+            description='PythonToCloudExport',
+            bucket=bucket,
+            fileNamePrefix= f'{folder}/{file_name}_',
+            scale=scale,
+            crs=crs,
+            maxPixels=1e10,
+            fileDimensions=patch_size,
+            fileFormat='GeoTIFF'
+        )
+    task.start()

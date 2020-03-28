@@ -4,13 +4,16 @@ from pathlib import Path
 from gee import assets, sentinel1, sentinel2, export
 
 
-def write_download_metadata(save_dir: Path, cities, year, from_date, to_date, sentinel1_params, sentinel2_params):
+def write_download_metadata(save_dir: Path, cities, year, patch_size, from_date, to_date, labels,
+                            sentinel1_params, sentinel2_params):
 
     download_metadata = {
         'cities': cities,
         'year': year,
+        'patch_size': patch_size,
         'from_date': from_date,
         'to_date': to_date,
+        'labels': labels,
         'sentinel1': {
             'polarizations': sentinel1_params['polarizations'],
             'orbits': ['asc', 'desc'],
@@ -31,11 +34,16 @@ def write_download_metadata(save_dir: Path, cities, year, from_date, to_date, se
 if __name__ == '__main__':
 
     save_dir = Path('C:/Users/hafne/Desktop/projects/data/gee/')
+    bucket = 'urban_extraction_realestate_stockholm'
+    drive_folder = 'gee_test_exports'
 
     ee.Initialize()
 
     # cities to export
-    cities = ['StockholmTest']
+    cities = ['GreaterStockholmArea']
+    labels = ['realestate']
+
+    patch_size = 256
 
     # time series range
     year = 2017
@@ -46,7 +54,7 @@ if __name__ == '__main__':
     sentinel1_params = {
         'polarizations': ['VV', 'VH'],
         'metrics': ['mean', 'stdDev', 'min', 'max'],
-        'include_count': True
+        'include_count': False
     }
 
     # sentinel 2 params
@@ -54,7 +62,7 @@ if __name__ == '__main__':
         'bands': ['Blue', 'Green', 'Red', 'NIR'],
         'indices': [],
         'metrics': ['median'],
-        'include_count': True
+        'include_count': False
     }
 
 
@@ -62,12 +70,34 @@ if __name__ == '__main__':
 
         bbox = assets.get_bbox(city)
 
-        # sentinel1_params['orbit_numbers'] = assets.get_orbit_numbers(city)
-        # s1_features = sentinel1.get_time_series_features(bbox, from_date, to_date, **sentinel1_params)
-        # export.sentinel_to_drive(s1_features, bbox, 'Sentinel1_StockholmTest1', 'gee_test_exports')
+        # sentinel 1
+        sentinel1_params['orbit_numbers'] = assets.get_orbit_numbers(city)
+        s1_features = sentinel1.get_time_series_features(bbox, from_date, to_date, **sentinel1_params)
+        file_name = f'sentinel1_{city}_{year}'
+        # export.to_drive(s1_features, bbox, drive_folder, file_name, patch_size)
+        export.to_cloud(s1_features, bbox, bucket, 'sentinel1', file_name, patch_size)
 
-        # s2_features = sentinel2.get_time_series_features(bbox, from_date, to_date, **sentinel2_params)
-        # export.sentinel_to_drive(s2_features, bbox, 'Sentinel2_StockholmTest4', 'gee_test_exports')
+        # sentinel 2
+        s2_features = sentinel2.get_time_series_features(bbox, from_date, to_date, **sentinel2_params)
+        file_name = f'sentinel2_{city}_{year}'
+        # export.to_drive(s2_features, bbox, drive_folder, file_name, patch_size)
+        export.to_cloud(s1_features, bbox, bucket, 'sentinel2', file_name, patch_size)
 
+        # labels
+        if 'wsf' in labels:
+            if city == 'StockholmTest':
+                wsf = assets.get_wsf('Stockholm')
+            else:
+                wsf = assets.get_wsf(city)
+            file_name = f'wsf_{city}'
+            # export.to_drive(wsf, bbox, drive_folder, file_name, patch_size)
+            # export.to_cloud(wsf, bbox, bucket, 'wsf', file_name, patch_size)
 
-    write_download_metadata(save_dir, cities, year, from_date, to_date, sentinel1_params, sentinel2_params)
+        if 'realestate' in labels:
+            real_estate = assets.get_real_estate_data_stockholm()
+            file_name = f'realestate_{city}'
+            # export.to_drive(real_estate, bbox, drive_folder, file_name, patch_size)
+            export.to_cloud(real_estate, bbox, bucket, 'realestate', file_name, patch_size)
+
+    write_download_metadata(save_dir, cities, year, patch_size, from_date, to_date, labels,
+                            sentinel1_params, sentinel2_params)

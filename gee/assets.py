@@ -73,6 +73,21 @@ def get_wsf(city):
     return wsf
 
 
+def get_real_estate_data_stockholm():
+
+    real_estate_data = ee.FeatureCollection(f'users/{__USERNAME__}/Stockholm/real_estate_data')
+
+    real_estate_data = real_estate_data.map(lambda f: ee.Feature(f).set({'urban': 1}))
+    # print(real_estate_data.first().getInfo())
+    # print(real_estate_data.size().getInfo())
+
+    real_estate_data = real_estate_data.reduceToImage(['urban'], ee.Reducer.first()) \
+        .unmask() \
+        .byte() \
+        .rename('urban')
+
+    return real_estate_data
+
 if __name__ == '__main__':
 
     ee.Initialize()
@@ -80,5 +95,7 @@ if __name__ == '__main__':
     city = 'StockholmTest'
     guf = get_guf(city)
     print(guf.getInfo())
+
+    get_real_estate_data_stockholm()
 
 

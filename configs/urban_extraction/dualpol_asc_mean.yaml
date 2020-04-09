@@ -1,0 +1,13 @@
+_BASE_: "base_realestate_stockholm_time_series.yaml"
+THRESH: 0
+MODEL:
+  IN_CHANNELS: 2
+DATALOADER:
+  SENTINEL1:
+    POLARIZATIONS: ['VV', 'VH']
+    ORBITS: ['asc']
+    METRICS: ['mean']
+  SENTINEL2:
+    BANDS: []
+    INDICES: []
+    METRICS: []

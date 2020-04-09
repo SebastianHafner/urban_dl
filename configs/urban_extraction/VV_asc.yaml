@@ -1,0 +1,13 @@
+_BASE_: "base_realestate_stockholm.yaml"
+THRESH: 0
+MODEL:
+  IN_CHANNELS: 1
+DATALOADER:
+  SENTINEL1:
+    POLARIZATIONS: ['VV']
+    ORBITS: ['asc']
+    METRICS: ['singlescene']
+  SENTINEL2:
+    BANDS: []
+    INDICES: []
+    METRICS: []

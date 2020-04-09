@@ -404,7 +404,8 @@ def inference_loop(net, cfg, device,
             y_pred = net(imgs)
 
             if step % 100 == 0 or step == dataset_length-1:
-                print(f'Processed {step+1}/{dataset_length}')
+                # print(f'Processed {step+1}/{dataset_length}')
+                pass
 
             if y_pred.shape[1] > 1: # multi-class
                 # In Two class Cross entropy mode, positive classes are in Channel #2

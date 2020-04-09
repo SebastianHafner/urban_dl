@@ -1,5 +1,6 @@
 import sys
 from os import path
+from pathlib import Path
 import os
 from argparse import ArgumentParser
 import datetime
@@ -110,6 +111,7 @@ def train_net(net,
     dataset = UrbanExtractionDataset(
         cfg=cfg,
         root_dir=cfg.DATASETS.TRAIN[0],
+        dataset='train',
         include_index=True,
         transform=trfm
     )
@@ -130,7 +132,7 @@ def train_net(net,
         dataloader_kwargs['shuffle'] = False
 
     dataloader = torch_data.DataLoader(dataset, **dataloader_kwargs)
-
+    maxF1 = 0
 
     for epoch in range(epochs):
         start = timeit.default_timer()
@@ -146,9 +148,7 @@ def train_net(net,
             optimizer.zero_grad()
 
             x = batch['x'].to(device)
-
             y_gts = batch['y'].to(device)
-            # TODO: this is probably wrong
             image_weight = batch['image_weight']
 
             y_pred = net(x)
@@ -156,9 +156,7 @@ def train_net(net,
             if cfg.MODEL.LOSS_TYPE == 'CrossEntropyLoss':
                 # y_pred = y_pred # Cross entropy loss doesn't like single channel dimension
                 y_gts = y_gts.long()# Cross entropy loss requires a long as target
-
             if use_edge_loss:
-                # TODO
                 edge_mask = y_gts[:,[-1]]
                 y_gts = y_gts[:,[0]]
                 loss = criterion(y_pred, y_gts, edge_mask, cfg.TRAINER.EDGE_LOSS_SCALE)
@@ -181,15 +179,8 @@ def train_net(net,
                 stop = timeit.default_timer()
                 time_per_n_batches= stop - start
 
-
-
-                # Averaged loss and f1 writer
-
-                # writer.add_scalar('f1/train', np.mean(f1_set), global_step)
-
                 max_mem, max_cache = gpu_stats()
-                print(f'step {global_step},  avg loss: {np.mean(loss_set):.4f}, cuda mem: {max_mem} MB, cuda cache: {max_cache} MB, time: {time_per_n_batches:.2f}s',
-                      flush=True)
+                print(f'step {global_step},  avg loss: {np.mean(loss_set):.4f}, cuda mem: {max_mem} MB, cuda cache: {max_cache} MB, time: {time_per_n_batches:.2f}s', flush=True)
 
                 wandb.log({
                     'loss': np.mean(loss_set),
@@ -206,15 +197,25 @@ def train_net(net,
 
             # torch.cuda.empty_cache()
             global_step += 1
-        # Save every 20 epochs
-        if epoch % 20 == 0:
-            check_point_name = f'cp_{global_step}.pkl'
-            save_path = os.path.join(log_path, check_point_name)
-            torch.save(net.state_dict(), save_path)
-        if epoch % 2 == 0:
-            # Evaluation after every other epoch
-            model_eval(net, cfg, device, max_samples=100, step=global_step, epoch=epoch)
-            model_eval(net, cfg, device, max_samples=100, run_type='TRAIN', step=global_step, epoch=epoch)
+
+        # Evaluation after every epoch
+        if epoch % 1 == 0:
+            # best model is saved after epoch 5
+            save_model = True
+            F1 = model_eval(net, cfg, device, max_samples=100, run_type='TEST', step=global_step, epoch=epoch,
+                               save_model=save_model, threshF1=maxF1)
+            maxF1 = F1 if F1 > maxF1 else maxF1
+            _ = model_eval(net, cfg, device, max_samples=100, run_type='TRAIN', step=global_step, epoch=epoch)
+
+    keep_only_best_network = True
+    if keep_only_best_network:
+        net_files = [file for file in Path(cfg.OUTPUT_DIR).glob('**/*')]
+        net_files = sorted(net_files, key=lambda file: int(file.stem.split('_')[1]))
+        for net_file in net_files[:-1]:
+            net_file.unlink()
+
+
+
 
 def image_sampling_weight(samples_metadata):
     # TODO: No idea how to change this
@@ -225,12 +226,8 @@ def image_sampling_weight(samples_metadata):
     print('done', flush=True)
     return sampling_weights
 
-def model_eval(net, cfg, device, run_type='TEST', max_samples = 1000, step=0, epoch=0):
-    '''
-    Runner that is concerned with training changes
-    :param run_type: 'train' or 'eval'
-    :return:
-    '''
+def model_eval(net, cfg, device, run_type='TEST', max_samples = 1000, step=0, epoch=0,
+               save_model=False, threshF1=0):
 
     F1_THRESH = torch.linspace(0, 1, 100).to(device)
     y_true_set = []
@@ -254,6 +251,7 @@ def model_eval(net, cfg, device, run_type='TEST', max_samples = 1000, step=0, ep
         dataset = UrbanExtractionDataset(
             cfg=cfg,
             root_dir=cfg.DATASETS.TRAIN[0],
+            dataset='train',
             include_index=True,
             transform=trfm
         )
@@ -262,6 +260,7 @@ def model_eval(net, cfg, device, run_type='TEST', max_samples = 1000, step=0, ep
         dataset = UrbanExtractionDataset(
             cfg=cfg,
             root_dir=cfg.DATASETS.TEST[0],
+            dataset='test',
             include_index=True,
             transform=trfm
         )
@@ -269,7 +268,7 @@ def model_eval(net, cfg, device, run_type='TEST', max_samples = 1000, step=0, ep
 
     # Summary gathering ===
 
-    print('Computing F1 score ', end=' ', flush=True)
+    print(f'Computing {run_type} F1 score ', end=' ', flush=True)
     # Max of the mean F1 score
 
     # measurer = MultiThresholdMetric(y_true_set, y_pred_set, F1_THRESH)
@@ -293,6 +292,15 @@ def model_eval(net, cfg, device, run_type='TEST', max_samples = 1000, step=0, ep
                'step': step,
                'epoch': epoch,
                })
+
+    if save_model and maxF1 > threshF1:
+        print(f'Saving network (F1 {run_type}: {maxF1})', flush=True)
+        check_point_name = f'net_{epoch}_{int(argmaxF1)}.pkl'
+        save_path = os.path.join(cfg.OUTPUT_DIR, check_point_name)
+        torch.save(net.state_dict(), save_path)
+
+    return maxF1
+
 
 class LULC(enum.Enum):
     BACKGROUND = (0, 'Background', 'black')
@@ -358,7 +366,7 @@ if __name__ == '__main__':
 
     wandb.init(
         name=cfg.NAME,
-        project='urban_extraction',
+        project='urban_extraction_single_scenes',
         tags=['run', 'localization', ],
     )
     torch.manual_seed(cfg.SEED)

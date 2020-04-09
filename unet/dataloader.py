@@ -10,6 +10,7 @@ from unet.utils import *
 from torchvision import transforms
 from unet.augmentations import *
 from preprocessing.utils import *
+from gee import sentinel1, sentinel2
 
 
 
@@ -188,7 +189,7 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
     '''
     Dataset for Urban Extraction style labelled Dataset
     '''
-    def __init__(self, cfg, root_dir: Path, transform: list = None,
+    def __init__(self, cfg, root_dir: Path, dataset: str, transform: list = None,
                  include_index: bool = False, include_projection: bool = False):
         super().__init__()
 
@@ -200,7 +201,8 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         self.cfg = cfg
 
         # loading metadata of dataset
-        with open(str(self.root_dir / 'metadata.json')) as f:
+        self.dataset = dataset
+        with open(str(self.root_dir / f'{dataset}.json')) as f:
             metadata = json.load(f)
         self.metadata = metadata
         self.year = metadata['year']
@@ -216,10 +218,19 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
 
         # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
-        self.s1_feature_selection = self._get_feature_selection(metadata['sentinel1'],
-                                                                cfg.DATALOADER.S1_FEATURES)
-        self.s2_feature_selection = self._get_feature_selection(metadata['sentinel2'],
-                                                                cfg.DATALOADER.S2_FEATURES)
+        available_features_sentinel1 = metadata['sentinel1_features']
+        selected_features_sentinel1 = sentinel1.get_feature_names(cfg.DATALOADER.SENTINEL1.POLARIZATIONS,
+                                                                  cfg.DATALOADER.SENTINEL1.ORBITS,
+                                                                  cfg.DATALOADER.SENTINEL1.METRICS)
+        self.s1_feature_selection = self._get_feature_selection(available_features_sentinel1,
+                                                                selected_features_sentinel1)
+
+        available_features_sentinel2 = metadata['sentinel2_features']
+        selected_features_sentinel2 = sentinel2.get_feature_names(cfg.DATALOADER.SENTINEL2.BANDS,
+                                                                  cfg.DATALOADER.SENTINEL2.INDICES,
+                                                                  cfg.DATALOADER.SENTINEL2.METRICS)
+        self.s2_feature_selection = self._get_feature_selection(available_features_sentinel2,
+                                                                selected_features_sentinel2)
 
     def __getitem__(self, index):
 
@@ -230,16 +241,23 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         patch_id = sample_metadata['patch_id']
 
         img, geotransform, crs = self._get_sentinel_data(city, self.year, patch_id)
-        label, geotransform, crs = self._get_label_data(city, self.year, patch_id)
 
-        img, label, sample_id, = self.transform((img, label, patch_id,))
-
-        sample = {
-            'x': img,
-            'y': label,
-            'img_name': sample_id,
-            'image_weight': np.float(sample_metadata['img_weight'])
-        }
+        if not self.dataset == 'inference':
+            label, geotransform, crs = self._get_label_data(city, self.year, patch_id)
+            img, label, sample_id, = self.transform((img, label, patch_id,))
+            sample = {
+                'x': img,
+                'y': label,
+                'img_name': sample_id,
+                'image_weight': np.float(sample_metadata['img_weight'])
+            }
+        else:
+            img, _, sample_id, = self.transform((img, np.zeros(img.shape), patch_id,))
+            sample = {
+                'x': img,
+                'img_name': sample_id,
+                'dataset': sample_metadata.get('dataset', 'train'),
+            }
 
         if self.include_index:
             sample['index'] = index
@@ -252,8 +270,8 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
     def _get_sentinel_data(self, city, year, patch_id):
 
-        s1_file = self.s1_dir / f'S1_{city}_{year}_{patch_id}.tif'
-        s2_file = self.s2_dir / f'S2_{city}_{year}_{patch_id}.tif'
+        s1_file = self.s1_dir / f'sentinel1_{city}_{year}_{patch_id}.tif'
+        s2_file = self.s2_dir / f'sentinel2_{city}_{year}_{patch_id}.tif'
 
         # loading images and corresponding label
         if not any(self.s1_feature_selection):  # only sentinel 2 features
@@ -285,6 +303,8 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
             fname = f'wsf_{city}_{patch_id}'
         elif label == 'bing':
             fname = f'bing_{city}_{patch_id}'
+        elif label == 'realestate':
+            fname = f'realestate_{city}_{patch_id}'
 
         label_file = self.label_dir / f'{fname}.tif'
         img, transform, crs = read_tif(label_file)
@@ -388,5 +408,4 @@ class UrbanExtractionDatasetInference(UrbanExtractionDataset):
             sample['crs'] = crs
 
         return sample
-
 

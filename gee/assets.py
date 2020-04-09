@@ -88,6 +88,24 @@ def get_real_estate_data_stockholm():
 
     return real_estate_data
 
+
+def get_building_percentage():
+
+    real_estate_data = ee.FeatureCollection(f'users/{__USERNAME__}/Stockholm/real_estate_data') \
+        .map(lambda f: ee.Feature(f).set({'urban': 1}))
+
+    building_raster = real_estate_data.reduceToImage(['urban'], ee.Reducer.first()) \
+        .unmask() \
+        .float()
+
+    building_percentage = building_raster.reproject(crs='EPSG:4326', scale=1) \
+        .reduceResolution(reducer=ee.Reducer.mean(), maxPixels=1000) \
+        .reproject(crs='EPSG:4326', scale=10) \
+        .rename('bp')
+
+    return building_percentage
+
+
 if __name__ == '__main__':
 
     ee.Initialize()

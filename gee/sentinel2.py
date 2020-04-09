@@ -64,7 +64,7 @@ def get_time_series_features(bbox: ee.Geometry, from_date: str, to_date: str, ba
     # addressing clouds
     max_cloud_percentage = 60
     s2 = s2.filterMetadata('CLOUDY_PIXEL_PERCENTAGE', 'not_greater_than', max_cloud_percentage)
-    print(f'Number of scenes (cloud percentage <= 60 %): {s2.size().getInfo()}')
+    print(f'Number of Sentinel-2 scenes (cloud percentage <= 60 %): {s2.size().getInfo()}')
     s2 = s2.map(cloud_mask)
 
     # linearly rescale all images from [0, 10'000] to [0, 1]

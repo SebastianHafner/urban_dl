@@ -1,15 +1,14 @@
 _BASE_: "base_bp_stockholm.yaml"
-THRESH: 0.37
+THRESH: 0.0
 MODEL:
-  IN_CHANNELS: 12
-  LOSS_TYPE: 'FrankensteinLoss'
+  IN_CHANNELS: 8
 DATALOADER:
   SENTINEL1:
     POLARIZATIONS: ['VV', 'VH']
     ORBITS: ['asc']
-    METRICS: ['mean', 'median', 'iqr']
+    METRICS: ['median', 'iqr']
   SENTINEL2:
-    BANDS: ['Blue', 'Green', 'Red', 'NIR', 'SWIR1', 'SWIR2']
+    BANDS: ['Blue', 'Green', 'Red', 'NIR']
     INDICES: []
     METRICS: ['median']
   LABEL: 'bp'

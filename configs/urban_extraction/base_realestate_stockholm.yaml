@@ -24,6 +24,7 @@ DATALOADER:
   SHUFFLE: True
   LEGACY_MASK_RASTERIZATION: False
   LABEL: 'realestate'
+  LABEL_THRESH: 0
   SENTINEL1:
     POLARIZATIONS: ['VV', 'VH']
     ORBITS: ['asc', 'desc']

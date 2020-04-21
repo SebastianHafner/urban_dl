@@ -1,5 +1,0 @@
-_BASE_: "unet_deeper.yaml"
-MODEL:
-  LOSS_TYPE: 'SoftDiceLoss'
-  OUT_CHANNELS: 1
-

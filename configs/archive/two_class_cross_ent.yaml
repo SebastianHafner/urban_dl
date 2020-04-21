@@ -1,6 +1,0 @@
-_BASE_: "base.yaml"
-MODEL:
-  LOSS_TYPE: 'CrossEntropyLoss'
-  OUT_CHANNELS: 2
-DATALOADER:
-  NUM_WORKER: 4

@@ -26,7 +26,7 @@ def sentinel2_feature_names(bands: list, indices: list, metrics: list):
 def get_image_weight(file: Path):
     if not file.exists():
         raise FileNotFoundError(f'Cannot find file {file.name}')
-    arr = cv2.imread(str(file), 0)
+    arr, _, _ = read_tif(file)
     n_urban = np.sum(arr)
     return int(n_urban)
 
@@ -113,7 +113,7 @@ def preprocess_dataset(data_dir: Path, save_dir: Path, cities: list, year: int, 
             json.dump(dataset_metadata, f, ensure_ascii=False, indent=4)
 
 
-def create_train_test_split(root_dir: Path, split: float = 0.3, delete_edge_files: bool = False, seed: int = 42):
+def create_train_test_split(root_dir: Path, split: float = 0.3, delete_edge_files: bool = False, seed: int = None):
 
     # loading metadata from download
     dl_file = root_dir / 'download_metadata.json'
@@ -297,14 +297,78 @@ def write_metadata_file(root_dir: Path, year: int, cities: list, s1_features: li
         json.dump(dataset_metadata, f, ensure_ascii=False, indent=4)
 
 
+def process_city(root_dir: Path, city: str, patch_size: int = 256):
+
+    sentinel1_dir = root_dir / city / 'sentinel1'
+    sentinel2_dir = root_dir / city / 'sentinel2'
+    buildings_dir = root_dir / city / 'buildings'
+    buildings_files = [file for file in buildings_dir.glob('**/*')]
+
+    samples = []
+    for i, buildings_file in enumerate(buildings_files):
+        _, _, patch_id = buildings_file.stem.split('_')
+        print(f'{city} {patch_id}')
+
+        sentinel1_file = sentinel1_dir / f'sentinel1_{city}_{patch_id}.tif'
+        sentinel2_file = sentinel2_dir / f'sentinel2_{city}_{patch_id}.tif'
+
+        for file in [buildings_file, sentinel1_file, sentinel2_file]:
+            arr, transform, crs = read_tif(file)
+            i, j, _ = arr.shape
+            if i > patch_size or j > patch_size:
+                arr = arr[:patch_size, :patch_size, ]
+                write_tif(file, arr, transform, crs)
+            elif i < patch_size or j < patch_size:
+                raise Exception(f'invalid file found {buildings_file.name}')
+            else:
+                pass
+
+        sample = {
+            'city': city,
+            'patch_id': patch_id,
+            'img_weight': get_image_weight(buildings_file)
+        }
+        samples.append(sample)
+
+    return samples
+
+
+def create_city_split(root_dir: Path, train_cities: list, test_cities: list):
+
+    for dataset in ['train', 'test']:
+        cities = train_cities if dataset == 'train' else test_cities
+
+        samples = []
+        for city in cities:
+            city_samples = process_city(root_dir, city, 256)
+            samples = samples + city_samples
+
+        # writing metadata to .json file for train and test set
+        data = {
+            'label': 'buildings',
+            'cities': cities,
+            'sentinel1_features': ['VV', 'VH'],
+            'sentinel2_features': ['B2', 'B3', 'B4', 'B8', 'B11', 'B12'],
+            'dataset': dataset,
+            'samples': samples
+        }
+        dataset_file = root_dir / f'{dataset}.json'
+        with open(str(dataset_file), 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+
+
+
+
 
 
 
 if __name__ == '__main__':
 
-    root_dir = Path('/storage/shafner/urban_extraction/urban_extraction_stockholm_time_series/')
+    root_dir = Path('/storage/shafner/urban_extraction/urban_extraction_buildings/')
 
-    create_train_test_split(root_dir, delete_edge_files=True)
+    create_city_split(root_dir, train_cities=['dallas'], test_cities=['losangeles'])
+    # create_train_test_split(root_dir, split=0.1, seed=7, delete_edge_files=True)
     # create_inference_file(root_dir, delete_edge_files=True)
 
     # cities = ['NewYork']

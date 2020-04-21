@@ -97,10 +97,9 @@ def get_building_percentage():
     building_raster = real_estate_data.reduceToImage(['urban'], ee.Reducer.first()) \
         .unmask() \
         .float()
-
+    # .reproject(crs='EPSG:4326', scale=10) \
     building_percentage = building_raster.reproject(crs='EPSG:4326', scale=1) \
         .reduceResolution(reducer=ee.Reducer.mean(), maxPixels=1000) \
-        .reproject(crs='EPSG:4326', scale=10) \
         .rename('bp')
 
     return building_percentage
@@ -108,12 +107,12 @@ def get_building_percentage():
 
 if __name__ == '__main__':
 
-    ee.Initialize()
+    # ee.Initialize()
 
-    city = 'StockholmTest'
-    guf = get_guf(city)
-    print(guf.getInfo())
-
-    get_real_estate_data_stockholm()
+    # city = 'StockholmTest'
+    # guf = get_guf(city)
+    # print(guf.getInfo())
+    print('test')
+    # get_real_estate_data_stockholm()
 
 

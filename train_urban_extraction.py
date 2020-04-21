@@ -207,7 +207,7 @@ def train_net(net,
             maxF1 = F1 if F1 > maxF1 else maxF1
             _ = model_eval(net, cfg, device, max_samples=100, run_type='TRAIN', step=global_step, epoch=epoch)
 
-    keep_only_best_network = True
+    keep_only_best_network = False
     if keep_only_best_network:
         net_files = [file for file in Path(cfg.OUTPUT_DIR).glob('**/*')]
         net_files = sorted(net_files, key=lambda file: int(file.stem.split('_')[1]))
@@ -294,8 +294,9 @@ def model_eval(net, cfg, device, run_type='TEST', max_samples = 1000, step=0, ep
                })
 
     if save_model and maxF1 > threshF1:
-        print(f'Saving network (F1 {run_type}: {maxF1})', flush=True)
-        check_point_name = f'net_{epoch}_{int(argmaxF1)}.pkl'
+        print(f'BEST PERFORMANCE SO FAR (saving network)', flush=True)
+        # check_point_name = f'net_{epoch}_{int(argmaxF1)}.pkl'
+        check_point_name = 'best_net.pkl'
         save_path = os.path.join(cfg.OUTPUT_DIR, check_point_name)
         torch.save(net.state_dict(), save_path)
 
@@ -366,7 +367,7 @@ if __name__ == '__main__':
 
     wandb.init(
         name=cfg.NAME,
-        project='urban_extraction_single_scenes',
+        project='buildings',
         tags=['run', 'localization', ],
     )
     torch.manual_seed(cfg.SEED)

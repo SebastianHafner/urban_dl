@@ -47,8 +47,8 @@ if __name__ == '__main__':
 
     # time series range
     year = 2018
-    from_date = f'{year}-01-01'
-    to_date = f'{year}-12-31'
+    from_date = f'{year}-07-01'
+    to_date = f'{year}-08-31'
 
     # sentinel 1 params
     sentinel1_params = {
@@ -60,7 +60,7 @@ if __name__ == '__main__':
 
     # sentinel 2 params
     sentinel2_params = {
-        'bands': ['Blue', 'Green', 'Red', 'NIR'],
+        'bands': ['Blue', 'Green', 'Red', 'NIR', 'SWIR1', 'SWIR2'],
         'indices': [],
         'metrics': ['median'],
         'include_count': False

@@ -11,6 +11,9 @@ from unet.augmentations import *
 from torchvision import transforms
 
 import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib import image
+import numpy as np
 
 
 # loading cfg for inference
@@ -37,7 +40,7 @@ def load_net(cfg, net_file):
 
 # loading dataset for inference
 def load_dataset(cfg, root_dir: Path):
-    dataset = dataloader.UrbanExtractionDataset(cfg, root_dir, 'inference', include_projection=True)
+    dataset = dataloader.UrbanExtractionDataset(cfg, root_dir, 'test', include_projection=True)
     return dataset
 
 
@@ -67,116 +70,6 @@ def get_train_test(root_dir: Path, product, fname):
         return 'test'
 
     return None
-
-
-# uses trained model to make a prediction for each tiles
-def inference_tiles(data_dir: Path, experiment: str, dataset: str, city: str, configs_dir: Path, models_dir: Path,
-                    model_cp: int, metadata_exists: bool = True):
-
-    mode = 'cuda' if torch.cuda.is_available() else 'cpu'
-    device = torch.device(mode)
-
-    # loading cfg and network
-    cfg = load_cfg(configs_dir, f'{experiment}_{dataset}')
-    net = load_net(cfg, models_dir / f'{experiment}_{dataset}', f'cp_{model_cp}')
-
-    # setting up save directory
-    save_dir = data_dir / f'pred_{experiment}_{dataset}'
-    if not save_dir.exists():
-        save_dir.mkdir()
-
-    # loading dataset from config (requires metadata)
-    metadata_file = data_dir / 'metadata.json'
-    assert (metadata_file.exists())
-    dataset = load_dataset(cfg, data_dir)
-    year = dataset.metadata['year']
-
-    # classifying all tiles in dataset
-    for i in range(len(dataset)):
-        item = dataset.__getitem__(i)
-        img = item['x'].to(device)
-
-        metadata = dataset.metadata['samples'][i]
-        patch_city = metadata['city']
-        patch_id = metadata['patch_id']
-        print(patch_city, patch_id)
-        if patch_city == city:
-            # print(patch_city, patch_id)
-
-            y_pred = net(img.unsqueeze(0))
-            y_pred = torch.sigmoid(y_pred)
-
-            y_pred = y_pred.cpu().detach().numpy()
-            threshold = cfg.THRESH
-            y_pred = y_pred[0, ] > threshold
-            y_pred = y_pred.transpose((1, 2, 0)).astype('uint8')
-
-            file = save_dir / f'pred_{patch_city}_{year}_{patch_id}.tif'
-            transform = item['transform']
-            crs = item['crs']
-            write_tif(file, y_pred, transform, crs)
-
-
-def merge_tiles_selfmade(root_dir: Path, city: str, year: int, experiment: str, dataset: str, tile_size: int = 256,
-                         show_train_test: bool = False, save_dir: Path = None):
-
-    product = f'pred_{experiment}_{dataset}'
-
-    # getting all files of product in train and test directory
-    files = get_train_test_files(root_dir, f'pred_{experiment}_{dataset}')
-
-    # getting width and height of mosaic by scanning all files
-    height, width = 0, 0
-    for file in files:
-        patch_product, patch_city, patch_year, patch_id = file.stem.split('_')
-        if patch_city == city:
-            m, n = patch_id.split('-')
-            m, n = int(m), int(n)
-            if m > height:
-                height = m
-            if n > width:
-                width = n
-
-    height += tile_size
-    width += tile_size
-
-    mosaic = np.empty((height, width, 1), dtype=np.uint8)
-
-    # populating arr with classification results
-    for i, m in enumerate(range(0, height, tile_size)):
-        for j, n in enumerate(range(0, width, tile_size)):
-
-            patch_id = f'{m:010d}-{n:010d}'
-            patch_fname = f'pred_{city}_{year}_{patch_id}.tif'
-
-            train_test = get_train_test(root_dir, product, patch_fname)
-            if train_test is None:
-                print(patch_fname)
-            assert(train_test is not None)
-
-            patch_file = root_dir / train_test / product / patch_fname
-            patch_data, _, _ = read_tif(patch_file)
-            if show_train_test:
-                if train_test == 'test':
-                    patch_data *= 2
-            mosaic[i*tile_size:(i+1)*tile_size, j*tile_size:(j+1)*tile_size, 0] = patch_data[:, :, 0]
-
-    if save_dir is None:
-        save_dir = root_dir / 'maps'
-    if not save_dir.exists():
-        save_dir.mkdir()
-
-    # get transform and crs from top left patch
-    m, n = 0, 0
-    patch_id = f'{m:010d}-{n:010d}'
-    patch_fname = f'pred_{city}_{year}_{patch_id}.tif'
-    train_test = get_train_test(root_dir, product, patch_fname)
-    patch_file = root_dir / train_test / product / patch_fname
-
-    _, transform, crs = read_tif(patch_file)
-
-    mosaic_file = save_dir / f'pred_{city}_{year}_{experiment}_{dataset}.tif'
-    write_tif(mosaic_file, mosaic, transform, crs)
 
 
 def merge_tiles(root_dir: Path, city: str, experiment: str, dataset: str, save_dir: Path = None):
@@ -214,86 +107,6 @@ def merge_tiles(root_dir: Path, city: str, experiment: str, dataset: str, save_d
     out_file = save_dir / f'{prefix}_{experiment}.tif'
     with rasterio.open(out_file, "w", **out_meta) as dest:
         dest.write(mosaic)
-
-
-def end_to_end_inference_old(data_dir: Path, experiment: str, dataset: str, city: str, configs_dir: Path,
-                         models_dir: Path, model_cp: int, tile_size: int = 256, save_dir: Path = None):
-
-    mode = 'cuda' if torch.cuda.is_available() else 'cpu'
-    device = torch.device(mode)
-
-    # loading cfg and network
-    cfg = load_cfg(configs_dir, f'{experiment}_{dataset}')
-    net = load_net(cfg, models_dir / f'{experiment}_{dataset}', f'cp_{model_cp}')
-
-    # loading dataset from config (requires metadata)
-    metadata_file = data_dir / 'metadata.json'
-    if not metadata_file.exists():
-        # TODO: implement automatic metadata generation, required download file
-        pass
-    assert(metadata_file.exists())
-
-    ds = load_dataset(cfg, data_dir)
-    year = ds.metadata['year']
-
-    # getting width and height of mosaic by scanning all files
-    files = [file for file in (data_dir / 'sentinel1').glob('**/*')]
-    height, width = 0, 0
-    for file in files:
-        patch_product, patch_city, patch_year, patch_id = file.stem.split('_')
-        if patch_city == city:
-            m, n = patch_id.split('-')
-            m, n = int(m), int(n)
-            if m > height:
-                height = m
-            if n > width:
-                width = n
-
-    height += tile_size
-    width += tile_size
-
-    mosaic = np.empty((height, width, 1), dtype=np.uint8)
-
-    # classifying all tiles in dataset
-    for i in range(len(ds)):
-
-        sample_metadata = ds.metadata['samples'][i]
-        patch_city = sample_metadata['city']
-        print(patch_city)
-
-        if patch_city == city:
-            item = ds.__getitem__(i)
-            img = item['x'].to(device)
-
-            y_pred = net(img.unsqueeze(0))
-            y_pred = torch.sigmoid(y_pred)
-
-            y_pred = y_pred.cpu().detach().numpy()
-            threshold = cfg.THRESH
-            y_pred = y_pred[0, ] > threshold
-            y_pred = y_pred.transpose((1, 2, 0)).astype('uint8')
-
-            patch_id = sample_metadata['patch_id']
-            print(patch_id)
-            m, n = patch_id.split('-')
-            m, n = int(m), int(n)
-
-            mosaic[m:m + tile_size, n:n + tile_size, 0] = y_pred[:, :, 0]
-
-    # transform and crs from top left
-    if save_dir is None:
-        save_dir = data_dir / 'maps'
-    if not save_dir.exists():
-        save_dir.mkdir()
-
-    # get transform and crs from top left patch
-    m, n = 0, 0
-    patch_id = f'{m:010d}-{n:010d}'
-    patch_file = data_dir / 'sentinel1' / f'S1_{city}_{year}_{patch_id}.tif'
-    _, transform, crs = read_tif(patch_file)
-
-    mosaic_file = save_dir / f'pred_{city}_{year}_{experiment}_{dataset}.tif'
-    write_tif(mosaic_file, mosaic, transform, crs)
 
 
 def end_to_end_inference(root_dir: Path, cfg_file: Path, net_file: Path, city: str, tile_size: int = 256,
@@ -383,12 +196,11 @@ def tile_inference(root_dir: Path, cfg_file: Path, net_file: Path, city: str, i_
     mode = 'cuda' if torch.cuda.is_available() else 'cpu'
     device = torch.device(mode)
 
-    # loading cfg and network
+    # loading cfg, network and dataset (requires inference.json)
     cfg = load_cfg(cfg_file)
     net = load_net(cfg, net_file)
-
-    # loading dataset from config (requires inference.json)
     ds = load_dataset(cfg, root_dir)
+
     year = ds.metadata['year']
 
     for i in range(len(ds)):
@@ -421,6 +233,117 @@ def tile_inference(root_dir: Path, cfg_file: Path, net_file: Path, city: str, i_
             return
 
 
+def evaluate_patches_new(root_dir: Path, cfg_file: Path, net_file: Path, city: str, dataset: str = 'test',
+                     save_dir: Path = None):
+
+    mode = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = torch.device(mode)
+
+    # loading cfg and network
+    cfg = load_cfg(cfg_file)
+    net = load_net(cfg, net_file)
+
+    # loading dataset from config (requires inference.json)
+    ds = dataloader.UrbanExtractionDataset(cfg, root_dir, dataset, include_projection=True)
+    samples = ds.metadata['samples']
+    samples = sorted(samples, key=lambda sample: sample['img_weight'], reverse=True)
+
+    np.random.seed(7)
+    indices = np.random.randint(1, len(ds), 20)
+
+    for index in list(indices):
+
+        # getting item
+        item = ds.__getitem__(index)
+        patch_id = item['img_name']
+        x = item['x'].to(device)
+
+        # network prediction
+        y_pred = net(x.unsqueeze(0))
+        y_pred = torch.sigmoid(y_pred)
+        y_pred = y_pred.cpu().detach().numpy()
+        y_pred = y_pred[0, ] > cfg.THRESH
+        y_pred = y_pred.transpose((1, 2, 0)).astype('uint8')
+
+        # label
+        y = item['y'].to(device)
+        y = y.cpu().detach().numpy()
+        y = y.transpose((1, 2, 0)).astype('uint8')
+
+        # sentinel data
+        x = x.cpu().detach().numpy()
+        x = x.transpose((1, 2, 0))
+        rgb = x[:, :, [4, 3, 2]] / 0.3
+        rgb = np.minimum(rgb, 1)
+        vv = x[:, :, 0]
+
+        fig, axs = plt.subplots(1, 4, figsize=(20, 8))
+        for ax in axs:
+            ax.set_axis_off()
+
+        axs[0].imshow(y[:, :, 0])
+        axs[1].imshow(y_pred[:, :, 0])
+        axs[2].imshow(rgb)
+        axs[3].imshow(vv, cmap='gray')
+
+        if save_dir is None:
+            save_dir = root_dir / 'inference' / cfg_file.stem
+        if not save_dir.exists():
+            save_dir.mkdir()
+        file = save_dir / f'eval_{city}_{patch_id}.png'
+
+        plt.savefig(file, dpi=300, bbox_inches='tight')
+
+
+def evaluate_patches(root_dir: Path, cfg_file: Path, net_file: Path, city: str, dataset: str = 'test',
+                     save_dir: Path = None):
+
+    mode = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = torch.device(mode)
+
+    # loading cfg and network
+    cfg = load_cfg(cfg_file)
+    net = load_net(cfg, net_file)
+
+    # loading dataset from config (requires inference.json)
+    ds = dataloader.UrbanExtractionDataset(cfg, root_dir, dataset, include_projection=True)
+    samples = ds.metadata['samples']
+    samples = sorted(samples, key=lambda sample: sample['img_weight'], reverse=True)
+
+    top = 10
+    for i in range(top):
+        patch_id = samples[i]['patch_id']
+        index = ds.get_index(city, patch_id)
+
+        pred, _, _ = ds.classify_item(index, net, device)
+        label, _, _ = ds._get_label_data(city, patch_id)
+
+        false_positives = np.logical_and(pred == 1,  label == 0)[:, :, 0]
+        false_negatives = np.logical_and(pred == 0, label == 1)[:, :, 0]
+        true_positives = np.logical_and(pred, label)[:, :, 0]
+
+        eval = np.zeros((label.shape[0], label.shape[1], 3), dtype=np.uint8)
+        eval[true_positives, :] = [255, 255, 255]
+        eval[false_positives, :] = [0, 0, 255]
+        eval[false_negatives, :] = [255, 0, 0]
+
+
+
+        # img = np.repeat(pred * 255, 3, axis=2)
+        if save_dir is None:
+            save_dir = root_dir / 'inference' / cfg_file.stem
+        if not save_dir.exists():
+            save_dir.mkdir()
+        file = save_dir / f'eval_{city}_{patch_id}.png'
+        image.imsave(file, eval)
+
+
+
+
+        # patch_id = f'{i_patch:010d}-{j_patch:010d}'
+        # index = ds.get_index_from_patch_id(patch_id)
+
+
 
 if __name__ == '__main__':
 
@@ -428,47 +351,16 @@ if __name__ == '__main__':
     NET_DIR = Path('/storage/shafner/run_logs/unet/')
     STORAGE_DIR = Path('/storage/shafner/urban_extraction')
 
-    dataset = 'urban_extraction_stockholm_time_series'
+    dataset = 'urban_extraction_buildings'
     root_dir = STORAGE_DIR / dataset
-    city = 'Stockholm'
+    city = 'losangeles'
+    cfg = 'testing'
 
-    settings_single_scene = [
-        ('10m_optical', 'net_9_41'),
-        ('10m_fusion', 'net_15_38'),
-        ('all_optical', 'net_9_47'),
-        ('rgb', 'net_9_42'),
-        ('no_rededge', 'net_9_44'),
-        ('fusion_all', 'net_15_43'),
-        ('VV_asc', 'net_7_27'),
-        ('VH_asc', 'net_9_28'),
-        ('dualpol_desc', 'net_9_32'),
-        ('dualpol_dualorbit', 'net_7_30'),
-        ('dualpol_asc', 'net_9_34')
-    ]
+    cfg_file = CFG_DIR / f'{cfg}.yaml'
+    net_file = NET_DIR / cfg / 'best_net.pkl'
 
-    settings_time_series = [
-        ('10m_optical_mean', 'net_6_32'),
-        ('10m_optical_median', 'net_6_39'),
-        ('10m_optical_allmetrics', 'net_6_38'),
-        ('dualpol_asc_mean', 'net_6_35'),
-        ('dualpol_asc_median', 'net_6_32'),
-        ('dualpol_asc_allmetrics', 'net_6_43'),
-        ('fusion_all_time_series', 'net_19_43')
-    ]
+    evaluate_patches_new(root_dir, cfg_file, net_file, city, 'test')
 
-    for setting in settings_time_series:
-        print(setting)
-        cfg, net = setting
 
-        cfg_file = CFG_DIR / f'{cfg}.yaml'
-        net_file = NET_DIR / cfg / f'{net}.pkl'
-
-        tiles = [('0000003328', '0000007936'), ('0000003584', '0000009216'), ('0000004608', '0000008960'),
-                 ('0000004352', '0000009216'), ('0000003840', '0000010496')]
-
-        for tile in tiles:
-            i, j = tile
-            tile_inference(root_dir, cfg_file, net_file, city, i, j)
-
-        # end_to_end_inference(root_dir, cfg_file, net_file, city, include_dataset=False)
+    # end_to_end_inference(root_dir, cfg_file, net_file, city, include_dataset=False)
 

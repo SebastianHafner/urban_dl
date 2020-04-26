@@ -226,6 +226,7 @@ def image_sampling_weight(samples_metadata):
     print('done', flush=True)
     return sampling_weights
 
+
 def model_eval(net, cfg, device, run_type='TEST', max_samples = 1000, step=0, epoch=0,
                save_model=False, threshF1=0):
 

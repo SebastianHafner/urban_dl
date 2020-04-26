@@ -367,7 +367,10 @@ if __name__ == '__main__':
 
     root_dir = Path('/storage/shafner/urban_extraction/urban_extraction_buildings/')
 
-    create_city_split(root_dir, train_cities=['dallas'], test_cities=['losangeles'])
+    train_cities = ['dallas', 'miami', 'vancouver', 'toronto', 'newyork', 'dallas']
+    test_cities = ['losangeles']
+
+    create_city_split(root_dir, train_cities=train_cities, test_cities=test_cities)
     # create_train_test_split(root_dir, split=0.1, seed=7, delete_edge_files=True)
     # create_inference_file(root_dir, delete_edge_files=True)
 

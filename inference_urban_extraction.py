@@ -249,7 +249,7 @@ def evaluate_patches_new(root_dir: Path, cfg_file: Path, net_file: Path, city: s
     samples = sorted(samples, key=lambda sample: sample['img_weight'], reverse=True)
 
     np.random.seed(7)
-    indices = np.random.randint(1, len(ds), 20)
+    indices = np.random.randint(1, len(ds), 50)
 
     for index in list(indices):
 
@@ -277,7 +277,7 @@ def evaluate_patches_new(root_dir: Path, cfg_file: Path, net_file: Path, city: s
         rgb = np.minimum(rgb, 1)
         vv = x[:, :, 0]
 
-        fig, axs = plt.subplots(1, 4, figsize=(20, 8))
+        fig, axs = plt.subplots(1, 4, figsize=(20, 10))
         for ax in axs:
             ax.set_axis_off()
 

@@ -17,7 +17,6 @@ from torchvision import transforms, utils
 from tabulate import tabulate
 
 from unet import UNet
-from unet.dataloader import Xview2Detectron2Dataset, Xview2Detectron2DamageLevelDataset
 from experiment_manager.metrics import roc_score, f1_score, MultiThresholdMetric, MultiClassF1
 from experiment_manager.args import default_argument_parser
 from experiment_manager.config import new_config

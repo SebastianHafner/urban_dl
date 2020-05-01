@@ -1,4 +1,5 @@
 _BASE_: "benchmark.yaml"
+THRESH: 0.30
 
 MODEL:
   LOSS_TYPE: 'WeightedComboLoss'

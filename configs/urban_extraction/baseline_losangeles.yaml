@@ -1,0 +1,21 @@
+_BASE_: "base_buildings.yaml"
+THRESH: 0.39
+MODEL:
+  IN_CHANNELS: 8
+DATALOADER:
+  SENTINEL1:
+    POLARIZATIONS: ['VV', 'VH']
+    ORBITS: []
+    METRICS: ['']
+  SENTINEL2:
+    BANDS: ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
+    INDICES: []
+    METRICS: ['']
+  LABEL: 'buildings'
+  LABEL_THRESH: 0.0
+TRAINER:
+  LR: 1e-3
+  EPOCHS: 100
+AUGMENTATION:
+  RANDOM_FLIP: False
+  RANDOM_ROTATE: False

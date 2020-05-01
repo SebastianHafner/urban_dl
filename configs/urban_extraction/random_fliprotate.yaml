@@ -1,11 +1,8 @@
 _BASE_: "benchmark.yaml"
 
-MODEL:
-  LOSS_TYPE: 'WeightedComboLoss'
-
 AUGMENTATION:
   RANDOM_FLIP: True
+  RANDOM_ROTATE: True
 
 TRAINER:
-  EPOCHS: 200
-  LR: 0.0008
+  EPOCHS: 30

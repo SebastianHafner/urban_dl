@@ -1,10 +1,12 @@
 _BASE_: "benchmark.yaml"
+THRESH: 0.0
 
 MODEL:
-  LOSS_TYPE: 'WeightedComboLoss'
+  LOSS_TYPE: 'FrankensteinLoss'
 
 AUGMENTATION:
   RANDOM_FLIP: True
+  RANDOM_ROTATE: True
 
 TRAINER:
   EPOCHS: 200

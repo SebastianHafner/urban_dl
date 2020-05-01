@@ -13,16 +13,22 @@ from preprocessing.utils import *
 from gee import sentinel1, sentinel2
 
 
+# dataset for urban extraction with building footprints
 class UrbanExtractionDataset(torch.utils.data.Dataset):
-    '''
-    Dataset for Urban Extraction style labelled Dataset
-    '''
-    def __init__(self, cfg, root_dir: Path, dataset: str, transform: list = None,
-                 include_index: bool = False, include_projection: bool = False):
+
+    def __init__(self, cfg, dataset: str, include_projection: bool = False):
         super().__init__()
 
-        self.root_dir = Path(root_dir)
         self.cfg = cfg
+        self.dataset = dataset
+        self.root_dir = Path(cfg.DATASETS.PATH)
+
+        if dataset == 'train':
+            self.transform = compose_transformations(cfg)
+        else:
+            self.transform = transforms.Compose([Numpy2Torch()])
+
+        self.include_projection = include_projection
 
         # loading metadata of dataset
         self.dataset = dataset
@@ -31,14 +37,6 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         self.metadata = metadata
 
         self.length = len(self.metadata['samples'])
-        print('dataset length', self.length)
-
-        self.transform = transform
-        if transform is None:
-            self.transform = transforms.Compose([Npy2Torch()])
-        self.include_index = include_index
-        self.include_projection = include_projection
-
 
         # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
         available_features_sentinel1 = metadata['sentinel1_features']
@@ -62,16 +60,15 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         img, geotransform, crs = self._get_sentinel_data(city, patch_id)
 
         label, geotransform, crs = self._get_label_data(city, patch_id)
-        img, label, sample_id, = self.transform((img, label, patch_id,))
+        img, label = self.transform((img, label))
+
         sample = {
             'x': img,
             'y': label,
-            'img_name': sample_id,
+            'city': city,
+            'patch_id': patch_id,
             'image_weight': np.float(sample_metadata['img_weight'])
         }
-
-        if self.include_index:
-            sample['index'] = index
 
         if self.include_projection:
             sample['transform'] = geotransform
@@ -147,3 +144,100 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
     def __len__(self):
         return self.length
 
+
+# dataset for classifying a scene
+class InferenceDataset(torch.utils.data.Dataset):
+
+    def __init__(self, cfg, s1_file: Path = None, s2_file: Path = None, patch_size: int = 256,
+                 s1_bands: list = None, s2_bands: list = None):
+        super().__init__()
+
+        self.cfg = cfg
+        self.s1_file = s1_file
+        self.s2_file = s2_file
+
+        self.transform = transforms.Compose([Numpy2Torch()])
+
+        ref_file = s1_file if s1_file is not None else s2_file
+        arr, self.geotransform, self.crs = read_tif(ref_file)
+        self.height, self.width, _ = arr.shape
+
+        self.patch_size = patch_size
+        self.rf = 8
+        self.n_rows = (self.height - self.rf) // patch_size
+        self.n_cols = (self.width - self.rf) // patch_size
+        self.length = self.n_rows * self.n_cols
+
+        # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
+        if s1_bands is None:
+            s1_bands = ['VV', 'VH']
+        selected_features_sentinel1 = cfg.DATALOADER.SENTINEL1.POLARIZATIONS
+        self.s1_feature_selection = self._get_feature_selection(s1_bands, selected_features_sentinel1)
+
+        if s2_bands is None:
+            s2_bands = ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
+        selected_features_sentinel2 = cfg.DATALOADER.SENTINEL2.BANDS
+        self.s2_feature_selection = self._get_feature_selection(s2_bands, selected_features_sentinel2)
+
+        # loading image
+        if not any(self.s1_feature_selection):  # only sentinel 2 features
+            img, _, _ = read_tif(self.s2_file)
+            img = img[:, :, self.s2_feature_selection]
+        elif not any(self.s2_feature_selection):  # only sentinel 1 features
+            img, _, _ = read_tif(self.s1_file)
+            img = img[:, :, self.s1_feature_selection]
+        else:  # sentinel 1 and sentinel 2 features
+            s1_img, _, _ = read_tif(self.s1_file)
+            s1_img = s1_img[:, :, self.s1_feature_selection]
+            s2_img, _, _ = read_tif(self.s2_file)
+            s2_img = s2_img[:, :, self.s2_feature_selection]
+            img = np.concatenate([s1_img, s2_img], axis=-1)
+        self.img = img
+
+    def __getitem__(self, index):
+
+        i_start = index // self.n_cols * self.patch_size
+        j_start = index % self.n_cols * self.patch_size
+        # check for border cases and add padding accordingly
+        # top left corner
+        if i_start == 0 and j_start == 0:
+            i_end = self.patch_size + 2 * self.rf
+            j_end = self.patch_size + 2 * self.rf
+        # top
+        elif i_start == 0:
+            i_end = self.patch_size + 2 * self.rf
+            j_end = j_start + self.patch_size + self.rf
+            j_start -= self.rf
+        elif j_start == 0:
+            j_end = self.patch_size + 2 * self.rf
+            i_end = i_start + self.patch_size + self.rf
+            i_start -= self.rf
+        else:
+            i_end = i_start + self.patch_size + self.rf
+            i_start -= self.rf
+            j_end = j_start + self.patch_size + self.rf
+            j_start -= self.rf
+
+        img = self._get_sentinel_data(i_start, i_end, j_start, j_end)
+        img, _ = self.transform((img, np.empty((1, 1, 1))))
+        patch = {
+            'x': img,
+            'row': (i_start, i_end),
+            'col': (j_start, j_end)
+        }
+
+        return patch
+
+    def _get_sentinel_data(self, i_start: int, i_end: int,  j_start: int, j_end: int):
+        img_patch = self.img[i_start:i_end, j_start:j_end, ]
+        return np.nan_to_num(img_patch).astype(np.float32)
+
+    def _get_feature_selection(self, features, selection):
+        feature_selection = [False for _ in range(len(features))]
+        for feature in selection:
+            i = features.index(feature)
+            feature_selection[i] = True
+        return feature_selection
+
+    def __len__(self):
+        return self.length

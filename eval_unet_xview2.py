@@ -359,46 +359,24 @@ def downsample_dataset_for_eval(y_true, y_pred):
 
     return y_true, y_pred
 
-def inference_loop(net, cfg, device,
-                    callback = None,
-                    batch_size = 1,
-                    run_type = 'TEST',
-                    max_samples = 999999999,
-                    dataset = None,
-                    callback_include_x = False,
 
-              ):
+def inference_loop(net, cfg, device, callback=None, batch_size=1, run_type='test', max_samples=999999999,
+                   dataset=None, callback_include_x=False):
 
     net.to(device)
     net.eval()
 
     # reset the generators
 
-    dset_source = cfg.DATASETS.TEST[0] if run_type == 'TEST' else cfg.DATASETS.TRAIN[0]
-    if dataset is None:
-        trfm = []
-        if cfg.AUGMENTATION.RESIZE: trfm.append( Resize(scale=cfg.AUGMENTATION.RESIZE_RATIO))
-        trfm.append(BGR2RGB())
-        if cfg.DATASETS.USE_CLAHE_VARI: trfm.append(VARI())
-        trfm.append(Npy2Torch())
-        trfm = transforms.Compose(trfm)
+    dataloader = torch_data.DataLoader(dataset, batch_size=batch_size, num_workers=cfg.DATALOADER.NUM_WORKER,
+                                       shuffle=cfg.DATALOADER.SHUFFLE, drop_last=True)
+    dataloader = torch_data.DataLoader(dataset, batch_size=batch_size, shuffle=cfg.DATALOADER.SHUFFLE, drop_last=True)
 
-        dataset = Xview2Detectron2Dataset(dset_source, pre_or_post=cfg.DATASETS.PRE_OR_POST, transform=trfm)
-
-    dataloader = torch_data.DataLoader(dataset,
-                                       batch_size=batch_size,
-                                       num_workers=cfg.DATALOADER.NUM_WORKER,
-                                       shuffle = cfg.DATALOADER.SHUFFLE,
-                                       drop_last=True,
-                                       )
-
-    dlen = len(dataset)
     dataset_length = np.minimum(len(dataset), max_samples)
     with torch.no_grad():
         for step, batch in enumerate(dataloader):
             imgs = batch['x'].to(device)
             y_label = batch['y'].to(device)
-            sample_name = batch['img_name']
 
             y_pred = net(imgs)
 
@@ -406,7 +384,7 @@ def inference_loop(net, cfg, device,
                 # print(f'Processed {step+1}/{dataset_length}')
                 pass
 
-            if y_pred.shape[1] > 1: # multi-class
+            if y_pred.shape[1] > 1:  # multi-class
                 # In Two class Cross entropy mode, positive classes are in Channel #2
                 y_pred = torch.softmax(y_pred, dim=1)
             else:
@@ -414,10 +392,9 @@ def inference_loop(net, cfg, device,
 
             if callback:
                 if callback_include_x:
-                    callback(imgs, y_label, y_pred, sample_name)
+                    callback(imgs, y_label, y_pred)
                 else:
-                    callback(y_label, y_pred, sample_name)
-
+                    callback(y_label, y_pred)
 
             if (max_samples is not None) and step >= max_samples:
                 break

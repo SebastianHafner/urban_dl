@@ -9,6 +9,8 @@ from preprocessing.utils import *
 from preprocessing.preprocessing_urban_extraction import write_metadata_file
 from unet.augmentations import *
 from torchvision import transforms
+import torchvision.transforms.functional as TF
+from torch.utils import data as torch_data
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -233,7 +235,7 @@ def tile_inference(root_dir: Path, cfg_file: Path, net_file: Path, city: str, i_
             return
 
 
-def evaluate_patches_new(root_dir: Path, cfg_file: Path, net_file: Path, city: str, dataset: str = 'test',
+def evaluate_patches_new(root_dir: Path, cfg_file: Path, net_file: Path, dataset: str = 'test', n: int = 10,
                      save_dir: Path = None):
 
     mode = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -244,18 +246,17 @@ def evaluate_patches_new(root_dir: Path, cfg_file: Path, net_file: Path, city: s
     net = load_net(cfg, net_file)
 
     # loading dataset from config (requires inference.json)
-    ds = dataloader.UrbanExtractionDataset(cfg, root_dir, dataset, include_projection=True)
-    samples = ds.metadata['samples']
-    samples = sorted(samples, key=lambda sample: sample['img_weight'], reverse=True)
+    ds = dataloader.UrbanExtractionDataset(cfg, dataset, include_projection=True)
 
     np.random.seed(7)
-    indices = np.random.randint(1, len(ds), 50)
+    indices = np.random.randint(1, len(ds), n)
 
     for index in list(indices):
 
         # getting item
         item = ds.__getitem__(index)
-        patch_id = item['img_name']
+        city = item['city']
+        patch_id = item['patch_id']
         x = item['x'].to(device)
 
         # network prediction
@@ -287,12 +288,13 @@ def evaluate_patches_new(root_dir: Path, cfg_file: Path, net_file: Path, city: s
         axs[3].imshow(vv, cmap='gray')
 
         if save_dir is None:
-            save_dir = root_dir / 'inference' / cfg_file.stem
+            save_dir = root_dir / 'evaluation' / cfg_file.stem
         if not save_dir.exists():
             save_dir.mkdir()
-        file = save_dir / f'eval_{city}_{patch_id}.png'
+        file = save_dir / f'eval_{cfg_file.stem}_{city}_{patch_id}.png'
 
         plt.savefig(file, dpi=300, bbox_inches='tight')
+        plt.close()
 
 
 def evaluate_patches(root_dir: Path, cfg_file: Path, net_file: Path, city: str, dataset: str = 'test',
@@ -331,7 +333,7 @@ def evaluate_patches(root_dir: Path, cfg_file: Path, net_file: Path, city: str, 
 
         # img = np.repeat(pred * 255, 3, axis=2)
         if save_dir is None:
-            save_dir = root_dir / 'inference' / cfg_file.stem
+            save_dir = root_dir / 'evaluation' / cfg_file.stem
         if not save_dir.exists():
             save_dir.mkdir()
         file = save_dir / f'eval_{city}_{patch_id}.png'
@@ -343,6 +345,54 @@ def evaluate_patches(root_dir: Path, cfg_file: Path, net_file: Path, city: str, 
         # patch_id = f'{i_patch:010d}-{j_patch:010d}'
         # index = ds.get_index_from_patch_id(patch_id)
 
+def img2map(cfg_file: Path, net_file: Path, s1_file: Path, s2_file: Path, save_dir: Path):
+
+    mode = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = torch.device(mode)
+
+    # loading cfg and network
+    cfg = load_cfg(cfg_file)
+    net = load_net(cfg, net_file)
+
+    # loading dataset from config (requires inference.json)
+    patch_size = 256
+    ds = dataloader.InferenceDataset(cfg, s1_file=s1_file, s2_file=s2_file, patch_size=patch_size)
+    pred = np.empty(shape=(ds.n_rows * ds.patch_size, ds.n_cols * ds.patch_size, 1), dtype='uint8')
+    activation = np.empty(shape=(ds.n_rows * ds.patch_size, ds.n_cols * ds.patch_size, 1), dtype='float32')
+
+    for i in range(len(ds)):
+        print(f'patch {i + 1}/{len(ds)}')
+        patch = ds.__getitem__(i)
+
+        img_patch = patch['x'].to(device)
+        i_start, i_end = patch['row']
+        j_start, j_end = patch['col']
+
+        activation_patch = net(img_patch.unsqueeze(0))
+        activation_patch = torch.sigmoid(activation_patch)
+        activation_patch = activation_patch.cpu().detach().numpy()
+        activation_patch = activation_patch[0, ].transpose((1, 2, 0)).astype('float32')
+        pred_patch = activation_patch > cfg.THRESH
+        pred_patch = pred_patch.astype('uint8')
+        rf = ds.rf
+        if i_start == 0 and j_start == 0:
+            activation[i_start:i_end-2*rf, j_start:j_end-2*rf, ] = activation_patch[:-2*rf, :-2*rf, ]
+            pred[i_start:i_end - 2 * rf, j_start:j_end - 2 * rf, ] = pred_patch[:-2 * rf, :-2 * rf, ]
+        elif i_start == 0:
+            activation[i_start:i_end-2*rf, j_start+rf:j_end-rf, ] = activation_patch[:-2*rf, rf:-rf, ]
+            pred[i_start:i_end - 2 * rf, j_start + rf:j_end - rf, ] = pred_patch[:-2 * rf, rf:-rf, ]
+        elif j_start == 0:
+            activation[i_start+rf: i_end-rf, j_start: j_end-2*rf, ] = activation_patch[rf:-rf, :-2*rf, ]
+            pred[i_start + rf: i_end - rf, j_start: j_end - 2 * rf, ] = pred_patch[rf:-rf, :-2 * rf, ]
+        else:
+            activation[i_start+rf: i_end-rf, j_start+rf: j_end-rf, ] = activation_patch[rf:-rf, rf:-rf, ]
+            pred[i_start + rf: i_end - rf, j_start + rf: j_end - rf, ] = pred_patch[rf:-rf, rf:-rf, ]
+
+    save_dir.mkdir(exist_ok=True)
+    activation_file = save_dir / f'activation_{cfg_file.stem}_stockholm.tif'
+    write_tif(activation_file, activation, ds.geotransform, ds.crs)
+    pred_file = save_dir / f'pred_{cfg_file.stem}_stockholm.tif'
+    write_tif(pred_file, pred, ds.geotransform, ds.crs)
 
 
 if __name__ == '__main__':
@@ -353,14 +403,16 @@ if __name__ == '__main__':
 
     dataset = 'urban_extraction_buildings'
     root_dir = STORAGE_DIR / dataset
-    city = 'losangeles'
-    cfg = 'testing'
+    cfg = 'benchmark_africa'
 
     cfg_file = CFG_DIR / f'{cfg}.yaml'
     net_file = NET_DIR / cfg / 'best_net.pkl'
 
-    evaluate_patches_new(root_dir, cfg_file, net_file, city, 'test')
+    # evaluate_patches_new(root_dir, cfg_file, net_file, 'test', 100)
 
+    s1_file = STORAGE_DIR / dataset / 'inference' / 'data' / 'sentinel1_stockholm.tif'
+    s2_file = STORAGE_DIR / dataset / 'inference' / 'data' / 'sentinel2_stockholm.tif'
 
-    # end_to_end_inference(root_dir, cfg_file, net_file, city, include_dataset=False)
+    save_dir = STORAGE_DIR / dataset / 'inference' / cfg
+    img2map(cfg_file, net_file, s1_file, s2_file, save_dir)
 

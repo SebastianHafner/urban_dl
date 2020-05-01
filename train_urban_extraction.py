@@ -32,40 +32,34 @@ from experiment_manager.metrics import f1_score
 from experiment_manager.args import default_argument_parser
 from experiment_manager.config import new_config
 from experiment_manager.loss import soft_dice_loss, soft_dice_loss_balanced, jaccard_like_loss, jaccard_like_balanced_loss
-from eval_unet_xview2 import inference_loop
 
 # import hp
 
-def train_net(net,
-              cfg):
 
-    log_path = cfg.OUTPUT_DIR
-    # writer = SummaryWriter(log_path)
+def train_net(net, cfg):
 
-    run_config = {}
-    run_config['CONFIG_NAME'] = cfg.NAME
-    run_config['device'] = device
-    run_config['log_path'] = cfg.OUTPUT_DIR
-    run_config['training_set'] = cfg.DATASETS.TRAIN
-    run_config['test set'] = cfg.DATASETS.TEST
-    run_config['epochs'] = cfg.TRAINER.EPOCHS
-    run_config['learning rate'] = cfg.TRAINER.LR
-    run_config['batch size'] = cfg.TRAINER.BATCH_SIZE
+    run_config = {
+        'CONFIG_NAME': cfg.NAME,
+        'device': device,
+        'epochs': cfg.TRAINER.EPOCHS,
+        'learning rate': cfg.TRAINER.LR,
+        'batch size': cfg.TRAINER.BATCH_SIZE,
+    }
     table = {'run config name': run_config.keys(),
              ' ': run_config.values(),
              }
     print(tabulate(table, headers='keys', tablefmt="fancy_grid", ))
 
+    optimizer = optim.Adam(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.0005)
 
-    optimizer = optim.Adam(net.parameters(),
-                          lr=cfg.TRAINER.LR,
-                          weight_decay=0.0005)
+    # TODO: put in separate file
+    criterion = None
     if cfg.MODEL.LOSS_TYPE == 'BCEWithLogitsLoss':
         criterion = nn.BCEWithLogitsLoss()
     elif cfg.MODEL.LOSS_TYPE == 'CrossEntropyLoss':
         balance_weight = [cfg.MODEL.NEGATIVE_WEIGHT, cfg.MODEL.POSITIVE_WEIGHT]
         balance_weight = torch.tensor(balance_weight).float().to(device)
-        criterion = nn.CrossEntropyLoss(weight = balance_weight)
+        criterion = nn.CrossEntropyLoss(weight=balance_weight)
     elif cfg.MODEL.LOSS_TYPE == 'SoftDiceLoss':
         criterion = soft_dice_loss
     elif cfg.MODEL.LOSS_TYPE == 'SoftDiceBalancedLoss':
@@ -78,72 +72,48 @@ def train_net(net,
         criterion = lambda pred, gts: 2 * F.binary_cross_entropy_with_logits(pred, gts) + soft_dice_loss(pred, gts)
     elif cfg.MODEL.LOSS_TYPE == 'FrankensteinLoss':
         criterion = lambda pred, gts: F.binary_cross_entropy_with_logits(pred, gts) + jaccard_like_balanced_loss(pred, gts)
-
-
+    else:
+        raise Exception(f'unknown loss {cfg.MODEL.LOSS_TYPE}')
 
     if torch.cuda.device_count() > 1:
         print(torch.cuda.device_count(), " GPUs!")
         net = nn.DataParallel(net)
+
     net.to(device)
     global_step = 0
     epochs = cfg.TRAINER.EPOCHS
 
     use_edge_loss = cfg.MODEL.LOSS_TYPE == 'FrankensteinEdgeLoss'
 
-    # transformations
-    trfm = []
-    # trfm.append(BGR2RGB())
-    #
-    # if cfg.DATASETS.USE_CLAHE_VARI: trfm.append(VARI())
-    #
-    # if cfg.AUGMENTATION.RESIZE: trfm.append(Resize(scale=cfg.AUGMENTATION.RESIZE_RATIO))
-    #
-    if cfg.AUGMENTATION.CROP_TYPE == 'uniform':
-        trfm.append(UniformCrop(crop_size=cfg.AUGMENTATION.CROP_SIZE))
-    elif cfg.AUGMENTATION.CROP_TYPE == 'importance':
-        trfm.append(ImportanceRandomCrop(crop_size=cfg.AUGMENTATION.CROP_SIZE))
-    #
-    # if cfg.AUGMENTATION.RANDOM_FLIP_ROTATE: trfm.append(RandomFlipRotate())
-    trfm.append(Npy2Torch())
-    trfm = transforms.Compose(trfm)
-
     # reset the generators
-    dataset = UrbanExtractionDataset(
-        cfg=cfg,
-        root_dir=cfg.DATASETS.TRAIN[0],
-        dataset='train',
-        include_index=True,
-        transform=trfm
-    )
+    dataset = UrbanExtractionDataset(cfg=cfg, dataset='train')
+    print('dataset length', len(dataset))
 
     dataloader_kwargs = {
         'batch_size': cfg.TRAINER.BATCH_SIZE,
-        'num_workers': cfg.DATALOADER.NUM_WORKER,
+        'num_workers': 0 if cfg.DEBUG else cfg.DATALOADER.NUM_WORKER,
         'shuffle':cfg.DATALOADER.SHUFFLE,
         'drop_last': True,
         'pin_memory': True,
     }
-
     # sampler
     if cfg.AUGMENTATION.IMAGE_OVERSAMPLING_TYPE == 'simple':
         image_p = image_sampling_weight(dataset.metadata['samples'])
         sampler = torch_data.WeightedRandomSampler(weights=image_p, num_samples=len(image_p))
         dataloader_kwargs['sampler'] = sampler
         dataloader_kwargs['shuffle'] = False
-
     dataloader = torch_data.DataLoader(dataset, **dataloader_kwargs)
-    maxF1 = 0
 
+    best_test_f1 = 0  # used to save network
     for epoch in range(epochs):
         start = timeit.default_timer()
         print('Starting epoch {}/{}.'.format(epoch + 1, epochs))
         epoch_loss = 0
 
         net.train()
-        # mean AP, mean AUC, max F1
-        mAP_set_train, mAUC_set_train, maxF1_train = [],[],[]
-        loss_set, f1_set = [], []
-        positive_pixels_set = [] # Used to evaluated image over sampling techniques
+
+        loss_set = []
+        positive_pixels_set = []  # Used to evaluated image over sampling techniques
         for i, batch in enumerate(dataloader):
             optimizer.zero_grad()
 
@@ -155,14 +125,13 @@ def train_net(net,
 
             if cfg.MODEL.LOSS_TYPE == 'CrossEntropyLoss':
                 # y_pred = y_pred # Cross entropy loss doesn't like single channel dimension
-                y_gts = y_gts.long()# Cross entropy loss requires a long as target
+                y_gts = y_gts.long()  # Cross entropy loss requires a long as target
             if use_edge_loss:
-                edge_mask = y_gts[:,[-1]]
-                y_gts = y_gts[:,[0]]
+                edge_mask = y_gts[:, [-1]]
+                y_gts = y_gts[:, [0]]
                 loss = criterion(y_pred, y_gts, edge_mask, cfg.TRAINER.EDGE_LOSS_SCALE)
             else:
                 loss = criterion(y_pred, y_gts)
-
 
             epoch_loss += loss.item()
 
@@ -172,8 +141,6 @@ def train_net(net,
             loss_set.append(loss.item())
             positive_pixels_set.extend(image_weight.cpu().numpy())
 
-
-
             if global_step % 100 == 0 and global_step == 0:
                 # time per 100 steps
                 stop = timeit.default_timer()
@@ -182,13 +149,14 @@ def train_net(net,
                 max_mem, max_cache = gpu_stats()
                 print(f'step {global_step},  avg loss: {np.mean(loss_set):.4f}, cuda mem: {max_mem} MB, cuda cache: {max_cache} MB, time: {time_per_n_batches:.2f}s', flush=True)
 
-                wandb.log({
-                    'loss': np.mean(loss_set),
-                    'gpu_memory': max_mem,
-                    'time': time_per_n_batches,
-                    'total_positive_pixels': np.mean(positive_pixels_set),
-                    'step': global_step,
-                })
+                if not cfg.DEBUG:
+                    wandb.log({
+                        'loss': np.mean(loss_set),
+                        'gpu_memory': max_mem,
+                        'time': time_per_n_batches,
+                        'total_positive_pixels': np.mean(positive_pixels_set),
+                        'step': global_step,
+                    })
 
                 loss_set = []
                 positive_pixels_set = []
@@ -198,44 +166,38 @@ def train_net(net,
             # torch.cuda.empty_cache()
             global_step += 1
 
-        # Evaluation after every epoch
-        if epoch % 1 == 0:
-            # best model is saved after epoch 5
-            save_model = True
-            F1 = model_eval(net, cfg, device, max_samples=100, run_type='TEST', step=global_step, epoch=epoch,
-                               save_model=save_model, threshF1=maxF1)
-            maxF1 = F1 if F1 > maxF1 else maxF1
-            _ = model_eval(net, cfg, device, max_samples=100, run_type='TRAIN', step=global_step, epoch=epoch)
+        # evaluation on sample of train and test set after ever epoch
+        test_f1 = model_eval(net, cfg, device, run_type='test', step=global_step, epoch=epoch)
+        train_f1 = model_eval(net, cfg, device, max_samples=100, run_type='train', step=global_step, epoch=epoch)
 
-    keep_only_best_network = False
-    if keep_only_best_network:
-        net_files = [file for file in Path(cfg.OUTPUT_DIR).glob('**/*')]
-        net_files = sorted(net_files, key=lambda file: int(file.stem.split('_')[1]))
-        for net_file in net_files[:-1]:
-            net_file.unlink()
+        if test_f1 > best_test_f1:
+            print(f'BEST PERFORMANCE SO FAR!', flush=True)
+            best_test_f1 = test_f1
 
-
+            if cfg.SAVE_MODEL and not cfg.DEBUG:
+                print(f'saving network', flush=True)
+                model_name = 'best_net.pkl'
+                save_path = os.path.join(cfg.OUTPUT_DIR, model_name)
+                torch.save(net.state_dict(), save_path)
 
 
 def image_sampling_weight(samples_metadata):
-    # TODO: No idea how to change this
     print('performing oversampling...', end='', flush=True)
-    EMPTY_IMAGE_BASELINE = 1000
-    sampling_weights = np.array([float(sample['img_weight']) for sample in samples_metadata]) + EMPTY_IMAGE_BASELINE
-    # image_p = np.array([int(p * SCALE_FACTOR) for p in urban_percentages]) + EMPTY_IMAGE_BASELINE
+    empty_image_baseline = 1000
+    sampling_weights = np.array([float(sample['img_weight']) for sample in samples_metadata]) + empty_image_baseline
     print('done', flush=True)
     return sampling_weights
 
 
-def model_eval(net, cfg, device, run_type='TEST', max_samples = 1000, step=0, epoch=0,
-               save_model=False, threshF1=0):
+def model_eval(net, cfg, device, run_type='test', max_samples=1000, step=0, epoch=0):
 
     F1_THRESH = torch.linspace(0, 1, 100).to(device)
     y_true_set = []
     y_pred_set = []
 
     measurer = MultiThresholdMetric(F1_THRESH)
-    def evaluate(y_true, y_pred, img_filename):
+
+    def evaluate(y_true, y_pred):
         y_true = y_true.detach()
         y_pred = y_pred.detach()
         y_true_set.append(y_true.cpu())
@@ -243,38 +205,10 @@ def model_eval(net, cfg, device, run_type='TEST', max_samples = 1000, step=0, ep
 
         measurer.add_sample(y_true, y_pred)
 
-    # transformations
-    trfm = []
-    trfm.append(Npy2Torch())
-    trfm = transforms.Compose(trfm)
-
-    if run_type == 'TRAIN':
-        dataset = UrbanExtractionDataset(
-            cfg=cfg,
-            root_dir=cfg.DATASETS.TRAIN[0],
-            dataset='train',
-            include_index=True,
-            transform=trfm
-        )
-        inference_loop(net, cfg, device, evaluate, run_type= 'TRAIN', max_samples = max_samples, dataset=dataset)
-    elif run_type == 'TEST':
-        dataset = UrbanExtractionDataset(
-            cfg=cfg,
-            root_dir=cfg.DATASETS.TEST[0],
-            dataset='test',
-            include_index=True,
-            transform=trfm
-        )
-        inference_loop(net, cfg, device, evaluate, max_samples = max_samples, dataset=dataset)
-
-    # Summary gathering ===
+    dataset = UrbanExtractionDataset(cfg=cfg, dataset=run_type)
+    inference_loop(net, cfg, device, evaluate, max_samples=max_samples, dataset=dataset)
 
     print(f'Computing {run_type} F1 score ', end=' ', flush=True)
-    # Max of the mean F1 score
-
-    # measurer = MultiThresholdMetric(y_true_set, y_pred_set, F1_THRESH)
-    # Max F1
-
 
     f1 = measurer.compute_f1()
     fpr, fnr = measurer.compute_basic_metrics()
@@ -282,47 +216,65 @@ def model_eval(net, cfg, device, run_type='TEST', max_samples = 1000, step=0, ep
     argmaxF1 = f1.argmax()
     best_fpr = fpr[argmaxF1]
     best_fnr = fnr[argmaxF1]
-    print(maxF1.item(), flush=True)
+    print(f'{maxF1.item():.3f}', flush=True)
 
-    set_name = 'test_set' if run_type == 'TEST' else 'training_set'
-    wandb.log({f'{set_name} max F1': maxF1,
-               f'{set_name} argmax F1': argmaxF1,
-               # f'{set_name} Average Precision': ap,
-               f'{set_name} false positive rate': best_fpr,
-               f'{set_name} false negative rate': best_fnr,
-               'step': step,
-               'epoch': epoch,
-               })
+    if not cfg.DEBUG:
+        wandb.log({f'{run_type} max F1': maxF1,
+                   f'{run_type} argmax F1': argmaxF1,
+                   # f'{set_name} Average Precision': ap,
+                   f'{run_type} false positive rate': best_fpr,
+                   f'{run_type} false negative rate': best_fnr,
+                   'step': step,
+                   'epoch': epoch,
+                   })
 
-    if save_model and maxF1 > threshF1:
-        print(f'BEST PERFORMANCE SO FAR (saving network)', flush=True)
-        # check_point_name = f'net_{epoch}_{int(argmaxF1)}.pkl'
-        check_point_name = 'best_net.pkl'
-        save_path = os.path.join(cfg.OUTPUT_DIR, check_point_name)
-        torch.save(net.state_dict(), save_path)
-
-    return maxF1
+    return maxF1.item()
 
 
-class LULC(enum.Enum):
-    BACKGROUND = (0, 'Background', 'black')
-    NO_DATA = (1, 'No Data', 'white')
-    NO_DAMAGE = (2, 'No damage', 'xkcd:lime')
-    MINOR_DAMAGE = (3, 'Minor Damage', 'yellow')
-    MAJOR_DAMAGE = (4, 'Major Damage', 'orange')
-    DESTROYED = (5, 'Destroyed', 'red')
+def inference_loop(net, cfg, device, callback=None, batch_size=1, run_type='test', max_samples=999999999,
+                   dataset=None, callback_include_x=False):
 
-    def __init__(self, val1, val2, val3):
-        self.id = val1
-        self.class_name = val2
-        self.color = val3
+    net.to(device)
+    net.eval()
 
-lulc_cmap = ListedColormap([entry.color for entry in LULC])
-lulc_norm = BoundaryNorm(np.arange(-0.5, 6, 1), lulc_cmap.N)
+    # reset the generators
+    num_workers = 0 if cfg.DEBUG else cfg.DATALOADER.NUM_WORKER
+    dataloader = torch_data.DataLoader(dataset, batch_size=batch_size, num_workers=num_workers,
+                                       shuffle=cfg.DATALOADER.SHUFFLE, drop_last=True)
+    # dataloader = torch_data.DataLoader(dataset, batch_size=batch_size, shuffle=cfg.DATALOADER.SHUFFLE, drop_last=True)
+
+    dataset_length = np.minimum(len(dataset), max_samples)
+    with torch.no_grad():
+        for step, batch in enumerate(dataloader):
+            imgs = batch['x'].to(device)
+            y_label = batch['y'].to(device)
+
+            y_pred = net(imgs)
+
+            if step % 100 == 0 or step == dataset_length-1:
+                # print(f'Processed {step+1}/{dataset_length}')
+                pass
+
+            if y_pred.shape[1] > 1:  # multi-class
+                # In Two class Cross entropy mode, positive classes are in Channel #2
+                y_pred = torch.softmax(y_pred, dim=1)
+            else:
+                y_pred = torch.sigmoid(y_pred)
+
+            if callback:
+                if callback_include_x:
+                    callback(imgs, y_label, y_pred)
+                else:
+                    callback(y_label, y_pred)
+
+            if (max_samples is not None) and step >= max_samples:
+                break
+
+
 
 def gpu_stats():
-    max_memory_allocated = torch.cuda.max_memory_allocated() / 1e6 # bytes to MB
-    max_memory_cached = torch.cuda.max_memory_cached() /1e6
+    max_memory_allocated = torch.cuda.max_memory_allocated() / 1e6  # bytes to MB
+    max_memory_cached = torch.cuda.max_memory_cached() / 1e6
     return int(max_memory_allocated), int(max_memory_cached)
 
 
@@ -344,6 +296,7 @@ def setup(args):
 
 
 if __name__ == '__main__':
+
     args = default_argument_parser().parse_known_args()[0]
     cfg = setup(args)
 
@@ -356,25 +309,23 @@ if __name__ == '__main__':
     else:
         net = UNet(cfg)
 
-    if args.resume and args.resume_from:
-        full_model_path = path.join(cfg.OUTPUT_DIR, args.model_path)
-        net.load_state_dict(torch.load(full_model_path))
-        print('Model loaded from {}'.format(full_model_path))
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # cudnn.benchmark = True # faster convolutions, but more memory
 
     print('=== Runnning on device: p', device)
 
-    wandb.init(
-        name=cfg.NAME,
-        project='buildings',
-        tags=['run', 'localization', ],
-    )
+    if not cfg.DEBUG:
+        wandb.init(
+            name=cfg.NAME,
+            project='buildings',
+            tags=['run', 'localization', ],
+        )
+
     torch.manual_seed(cfg.SEED)
     np.random.seed(cfg.SEED)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
     try:
         train_net(net, cfg)
     except KeyboardInterrupt:

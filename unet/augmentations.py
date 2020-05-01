@@ -1,29 +1,80 @@
 import os
 
 import torchvision.transforms.functional as TF
+from torchvision import transforms
 
-# import cv2
 import numpy as np
 import torch
 from scipy import ndimage
 from unet.utils.utils import *
 
-class Resize():
 
-    def __init__(self, scale, resize_label=True):
-        self.scale = scale
-        self.resize_label = resize_label
+def compose_transformations(cfg):
+    transformations = []
 
+    if cfg.AUGMENTATION.CROP_TYPE == 'uniform':
+        transformations.append(UniformCrop(crop_size=cfg.AUGMENTATION.CROP_SIZE))
+    elif cfg.AUGMENTATION.CROP_TYPE == 'importance':
+        transformations.append(ImportanceRandomCrop(crop_size=cfg.AUGMENTATION.CROP_SIZE))
+
+    if cfg.AUGMENTATION.RANDOM_FLIP:
+        transformations.append(RandomFlip())
+
+    if cfg.AUGMENTATION.RANDOM_ROTATE:
+        transformations.append(RandomRotate())
+
+    transformations.append(Numpy2Torch())
+
+    return transforms.Compose(transformations)
+
+
+class Numpy2Torch(object):
     def __call__(self, args):
-        input, label, image_path = args
+        img, label = args
+        img_tensor = TF.to_tensor(img)
+        label_tensor = TF.to_tensor(label)
+        return img_tensor, label_tensor
 
-        input = cv2.resize(input, None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_AREA)
-        if self.resize_label:
-            label = cv2.resize(label, None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_AREA)
 
-        return input, label, image_path
+class RandomFlip(object):
+    def __call__(self, args):
+        img, label = args
+        horizontal_flip = np.random.choice([True, False])
+        vertical_flip = np.random.choice([True, False])
 
-class VARI():
+        if horizontal_flip:
+            img = np.flip(img, axis=1)
+            label = np.flip(label, axis=1)
+
+        if vertical_flip:
+            img = np.flip(img, axis=0)
+            label = np.flip(label, axis=0)
+
+        img = img.copy()
+        label = label.copy()
+
+        return img, label
+
+
+class RandomRotate(object):
+    def __call__(self, args):
+        img, label = args
+        k = np.random.randint(1, 4) # number of 90 degree rotations
+        img = np.rot90(img, k, axes=(0, 1)).copy()
+        label = np.rot90(label, k, axes=(0, 1)).copy()
+        return img, label
+
+
+class ResizedRandomCrops(object):
+    def __call__(self, args):
+        img, label = args
+        k = np.random.randint(1, 4) # number of 90 degree rotations
+        img = np.rot90(img, k, axes=(0, 1)).copy()
+        label = np.rot90(label, k, axes=(0, 1)).copy()
+        return img, label
+
+
+class VARI(object):
     def __call__(self, args):
         input, label, image_path = args
         image_name = os.path.basename(image_path)
@@ -44,19 +95,8 @@ class VARI():
         input_t = torch.cat([input, VARI])
         return input_t, label, image_path
 
-class Npy2Torch():
-    def __call__(self, args):
-        input, label, image_path = args
-        input_t = TF.to_tensor(input)
-        label = TF.to_tensor(label)
-        return input_t, label, image_path
-class BGR2RGB():
-    def __call__(self, args):
-        input, label, image_path = args
-        input = bgr2rgb(input)
-        return input, label, image_path
 
-class UniformCrop():
+class UniformCrop(object):
     '''
     Performs uniform cropping on numpy images (cv2 images)
     '''
@@ -75,6 +115,7 @@ class UniformCrop():
         input, label, image_path = args
         input, label = self.random_crop(input, label)
         return input, label, image_path
+
 
 class ImportanceRandomCrop(UniformCrop):
     def __call__(self, args):
@@ -103,72 +144,29 @@ class ImportanceRandomCrop(UniformCrop):
 
         return input, label, image_path
 
-class IncludeLocalizationMask():
-    def __init__(self, use_gts_mask=False):
-        self.use_gts_mask = use_gts_mask
+
+class Resize(object):
+
+    def __init__(self, scale, resize_label=True):
+        self.scale = scale
+        self.resize_label = resize_label
 
     def __call__(self, args):
         input, label, image_path = args
-        image_name = os.path.basename(image_path)
 
-        # Load predisaster counter part
-        img_name_split = image_name.split('_')
-        img_name_split[-2] = 'pre'
-        image_name = '_'.join(img_name_split)
-
-        dir_name = os.path.dirname(image_path)
-        # Load preprocessed mask if exist
-        subdir = 'label_mask' if self.use_gts_mask else 'loc_predicted'
-        mask_path = os.path.join(dir_name, subdir, image_name)
-
-        assert os.path.exists(mask_path), 'Mask data is not generated, please double check \n' + mask_path
-
-        mask = imread_cached(mask_path).astype(np.float32)
-        mask = mask[...,0][...,None] # [H, W, 3] -> [H, W, 1]
-
-        input = np.concatenate([input, mask], axis=-1)
+        input = cv2.resize(input, None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_AREA)
+        if self.resize_label:
+            label = cv2.resize(label, None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_AREA)
 
         return input, label, image_path
-class StackPreDisasterImage():
-    def __init__(self, pre_or_post='pre'):
-        self.pre_or_post = pre_or_post
 
+
+class BGR2RGB():
     def __call__(self, args):
         input, label, image_path = args
-        image_name = os.path.basename(image_path)
-        dir_name = os.path.dirname(image_path)
-
-        # Load counter part
-        img_name_split = image_name.split('_')
-        img_name_split[-2] = self.pre_or_post
-        cp_image_name = '_'.join(img_name_split)
-
-        # Read image
-        cp_image_path = os.path.join(dir_name, cp_image_name)
-        cp_image = imread_cached(cp_image_path).astype(np.float32)
-
-        # RGB -> BGR and stack
-        cp_image = bgr2rgb(cp_image)
-        input = np.concatenate([input, cp_image], axis=-1)
+        input = bgr2rgb(input)
         return input, label, image_path
 
-class RandomFlipRotate():
-    def __call__(self, args):
-        input, label, image_path = args
-        _hflip = np.random.choice([True, False])
-        _vflip = np.random.choice([True, False])
-        _rot = np.random.randint(0, 360)
 
-        if _hflip:
-            input = np.flip(input, axis=0)
-            label = np.flip(label, axis=0)
-
-        if _vflip:
-            input = np.flip(input, axis=1)
-            label = np.flip(label, axis=1)
-
-        input = ndimage.rotate(input, _rot, reshape=False).copy()
-        label = ndimage.rotate(label, _rot, reshape=False).copy()
-        return input, label, image_path
 def bgr2rgb(img):
-    return img[..., [2,1,0]]
+    return img[..., [2, 1, 0]]

@@ -23,58 +23,64 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         self.dataset = dataset
         self.root_dir = Path(cfg.DATASETS.PATH)
 
+        self.dataset = dataset
         if dataset == 'train':
             self.transform = compose_transformations(cfg)
-        else:
+            self.cities = cfg.DATASETS.TRAIN
+        elif dataset == 'test':
             self.transform = transforms.Compose([Numpy2Torch()])
+            self.cities = cfg.DATASETS.TEST
+        else:  # used to load only 1 city passed as dataset
+            self.transform = transforms.Compose([Numpy2Torch()])
+            self.cities = [dataset]
+
+        self.samples = []
+        for city in self.cities:
+            samples_file = self.root_dir / city / 'samples.json'
+            with open(str(samples_file)) as f:
+                metadata = json.load(f)
+            self.samples += metadata['samples']
+        self.length = len(self.samples)
 
         self.include_projection = include_projection
 
-        # loading metadata of dataset
-        self.dataset = dataset
-        with open(str(self.root_dir / f'{dataset}.json')) as f:
-            metadata = json.load(f)
-        self.metadata = metadata
-
-        self.length = len(self.metadata['samples'])
-
         # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
-        available_features_sentinel1 = metadata['sentinel1_features']
-        selected_features_sentinel1 = cfg.DATALOADER.SENTINEL1.POLARIZATIONS
+        available_features_sentinel1 = ['VV', 'VH']
+        selected_features_sentinel1 = cfg.DATALOADER.SENTINEL1_BANDS
         self.s1_feature_selection = self._get_feature_selection(available_features_sentinel1,
                                                                 selected_features_sentinel1)
 
-        available_features_sentinel2 = metadata['sentinel2_features']
-        selected_features_sentinel2 = cfg.DATALOADER.SENTINEL2.BANDS
+        available_features_sentinel2 = ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
+        selected_features_sentinel2 = cfg.DATALOADER.SENTINEL2_BANDS
         self.s2_feature_selection = self._get_feature_selection(available_features_sentinel2,
                                                                 selected_features_sentinel2)
 
     def __getitem__(self, index):
 
         # loading metadata of sample
-        sample_metadata = self.metadata['samples'][index]
+        sample = self.samples[index]
 
-        city = sample_metadata['city']
-        patch_id = sample_metadata['patch_id']
+        city = sample['city']
+        patch_id = sample['patch_id']
 
         img, geotransform, crs = self._get_sentinel_data(city, patch_id)
 
         label, geotransform, crs = self._get_label_data(city, patch_id)
         img, label = self.transform((img, label))
 
-        sample = {
+        item = {
             'x': img,
             'y': label,
             'city': city,
             'patch_id': patch_id,
-            'image_weight': np.float(sample_metadata['img_weight'])
+            'image_weight': np.float(sample['img_weight'])
         }
 
         if self.include_projection:
-            sample['transform'] = geotransform
-            sample['crs'] = crs
+            item['transform'] = geotransform
+            item['crs'] = crs
 
-        return sample
+        return item
 
     def _get_sentinel_data(self, city, patch_id):
 
@@ -104,7 +110,8 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
         label_file = self.root_dir / city / label / f'{label}_{city}_{patch_id}.tif'
         img, transform, crs = read_tif(label_file)
-        img = img > threshold
+        if threshold >= 0:
+            img = img > threshold
 
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
@@ -115,6 +122,7 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
             feature_selection[i] = True
         return feature_selection
 
+    # TODO: does not work anymore
     def get_index(self, city: str, patch_id: str):
 
         samples = self.metadata['samples']
@@ -124,6 +132,7 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
                 return index
         return None
 
+    # TODO: does not work anymore
     def classify_item(self, index, trained_net, device):
 
         # getting item
@@ -143,6 +152,9 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.length
+
+    def __str__(self):
+        return f'Dataset with {self.length} samples across {len(self.cities)} cities.'
 
 
 # dataset for classifying a scene
@@ -171,12 +183,12 @@ class InferenceDataset(torch.utils.data.Dataset):
         # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
         if s1_bands is None:
             s1_bands = ['VV', 'VH']
-        selected_features_sentinel1 = cfg.DATALOADER.SENTINEL1.POLARIZATIONS
+        selected_features_sentinel1 = cfg.DATALOADER.SENTINEL1_BANDS
         self.s1_feature_selection = self._get_feature_selection(s1_bands, selected_features_sentinel1)
 
         if s2_bands is None:
             s2_bands = ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
-        selected_features_sentinel2 = cfg.DATALOADER.SENTINEL2.BANDS
+        selected_features_sentinel2 = cfg.DATALOADER.SENTINEL2_BANDS
         self.s2_feature_selection = self._get_feature_selection(s2_bands, selected_features_sentinel2)
 
         # loading image

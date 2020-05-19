@@ -53,7 +53,6 @@ def train_net(net, cfg):
     optimizer = optim.Adam(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.0005)
 
     # TODO: put in separate file
-    criterion = None
     if cfg.MODEL.LOSS_TYPE == 'BCEWithLogitsLoss':
         criterion = nn.BCEWithLogitsLoss()
     elif cfg.MODEL.LOSS_TYPE == 'CrossEntropyLoss':
@@ -72,6 +71,8 @@ def train_net(net, cfg):
         criterion = lambda pred, gts: 2 * F.binary_cross_entropy_with_logits(pred, gts) + soft_dice_loss(pred, gts)
     elif cfg.MODEL.LOSS_TYPE == 'FrankensteinLoss':
         criterion = lambda pred, gts: F.binary_cross_entropy_with_logits(pred, gts) + jaccard_like_balanced_loss(pred, gts)
+    elif cfg.MODEL.LOSS_TYPE == 'MeanSquareErrorLoss':
+        criterion = nn.MSELoss()
     else:
         raise Exception(f'unknown loss {cfg.MODEL.LOSS_TYPE}')
 
@@ -87,7 +88,7 @@ def train_net(net, cfg):
 
     # reset the generators
     dataset = UrbanExtractionDataset(cfg=cfg, dataset='train')
-    print('dataset length', len(dataset))
+    print(dataset)
 
     dataloader_kwargs = {
         'batch_size': cfg.TRAINER.BATCH_SIZE,
@@ -97,8 +98,9 @@ def train_net(net, cfg):
         'pin_memory': True,
     }
     # sampler
+    # TODO: turn oversampling off
     if cfg.AUGMENTATION.IMAGE_OVERSAMPLING_TYPE == 'simple':
-        image_p = image_sampling_weight(dataset.metadata['samples'])
+        image_p = image_sampling_weight(dataset.samples)
         sampler = torch_data.WeightedRandomSampler(weights=image_p, num_samples=len(image_p))
         dataloader_kwargs['sampler'] = sampler
         dataloader_kwargs['shuffle'] = False

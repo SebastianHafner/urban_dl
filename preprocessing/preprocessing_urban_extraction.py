@@ -357,7 +357,50 @@ def create_city_split(root_dir: Path, train_cities: list, test_cities: list):
             json.dump(data, f, ensure_ascii=False, indent=4)
 
 
+def preprocess(path: Path, city: str, patch_size: int = 256):
 
+    sentinel1_dir = path / 'sentinel1'
+    sentinel2_dir = path / 'sentinel2'
+    buildings_dir = path / 'buildings'
+    buildings_files = [file for file in buildings_dir.glob('**/*')]
+
+    samples = []
+    for i, buildings_file in enumerate(buildings_files):
+        _, _, patch_id = buildings_file.stem.split('_')
+        print(f'{city} {patch_id}')
+
+        sentinel1_file = sentinel1_dir / f'sentinel1_{city}_{patch_id}.tif'
+        sentinel2_file = sentinel2_dir / f'sentinel2_{city}_{patch_id}.tif'
+
+        for file in [buildings_file, sentinel1_file, sentinel2_file]:
+            arr, transform, crs = read_tif(file)
+            i, j, _ = arr.shape
+            if i > patch_size or j > patch_size:
+                arr = arr[:patch_size, :patch_size, ]
+                write_tif(file, arr, transform, crs)
+            elif i < patch_size or j < patch_size:
+                raise Exception(f'invalid file found {buildings_file.name}')
+            else:
+                pass
+
+        sample = {
+            'city': city,
+            'patch_id': patch_id,
+            'img_weight': get_image_weight(buildings_file)
+        }
+        samples.append(sample)
+
+    # writing data to json file
+    data = {
+        'label': 'buildings',
+        'city': city,
+        'sentinel1_features': ['VV', 'VH'],
+        'sentinel2_features': ['B2', 'B3', 'B4', 'B8', 'B11', 'B12'],
+        'samples': samples
+    }
+    dataset_file = path / f'samples.json'
+    with open(str(dataset_file), 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
 
 
@@ -370,7 +413,12 @@ if __name__ == '__main__':
     train_cities = ['dallas', 'miami', 'vancouver', 'toronto', 'newyork', 'dallas', 'kampala']
     test_cities = ['losangeles', 'daressalaam']
 
-    create_city_split(root_dir, train_cities=train_cities, test_cities=test_cities)
+    cities = ['zurich', 'copenhagen', 'amsterdam', 'stockholm']
+    for city in cities:
+        path = root_dir / city
+        preprocess(path, city, 256)
+
+    # create_city_split(root_dir, train_cities=train_cities, test_cities=test_cities)
     # create_train_test_split(root_dir, split=0.1, seed=7, delete_edge_files=True)
     # create_inference_file(root_dir, delete_edge_files=True)
 

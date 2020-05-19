@@ -1,0 +1,9 @@
+_BASE_: "base.yaml"
+THRESH: 0.36
+
+MODEL:
+  IN_CHANNELS: 2
+
+DATALOADER:
+  SENTINEL1_BANDS: ['VV', 'VH']
+  SENTINEL2_BANDS: []

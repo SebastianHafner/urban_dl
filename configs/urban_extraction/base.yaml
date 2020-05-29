@@ -54,3 +54,5 @@ AUGMENTATION:
   ENABLE_VARI: False # False NDVI for detecting vegetation
   RANDOM_FLIP: True
   RANDOM_ROTATE: True
+  SENSOR_DROPOUT: False
+  DROPOUT_PROBABILITY: 0.5

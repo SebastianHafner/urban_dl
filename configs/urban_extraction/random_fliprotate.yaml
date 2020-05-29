@@ -1,8 +1,0 @@
-_BASE_: "benchmark.yaml"
-
-AUGMENTATION:
-  RANDOM_FLIP: True
-  RANDOM_ROTATE: True
-
-TRAINER:
-  EPOCHS: 30

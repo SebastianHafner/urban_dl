@@ -1,0 +1,7 @@
+_BASE_: "base.yaml"
+THRESH: 0.0
+
+TRAINER:
+  LR: 4e-4
+  BATCH_SIZE: 64
+  EPOCHS: 600

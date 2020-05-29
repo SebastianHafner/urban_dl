@@ -1,2 +1,2 @@
-_BASE_: "base.yaml"
+_BASE_: "debug.yaml"
 THRESH: 0.35

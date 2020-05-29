@@ -1,7 +1,0 @@
-_BASE_: "base.yaml"
-THRESH: 0
-
-DATASETS:
-  TRAIN: ['dallas', 'miami', 'vancouver', 'toronto', 'newyork']
-  TEST: ['losangeles']
-  USE_CLAHE_VARI: False

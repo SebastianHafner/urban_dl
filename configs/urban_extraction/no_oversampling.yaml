@@ -1,5 +1,0 @@
-_BASE_: "base.yaml"
-THRESH: 0
-
-AUGMENTATION:
-  IMAGE_OVERSAMPLING_TYPE: 'none' # [none, simple]

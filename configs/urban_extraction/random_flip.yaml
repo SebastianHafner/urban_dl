@@ -1,4 +1,0 @@
-_BASE_: "benchmark.yaml"
-
-AUGMENTATION:
-  RANDOM_FLIP: True

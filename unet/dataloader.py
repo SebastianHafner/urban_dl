@@ -99,6 +99,15 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
             s1_img = s1_img[:, :, self.s1_feature_selection]
             s2_img, transform, crs = read_tif(s2_file)
             s2_img = s2_img[:, :, self.s2_feature_selection]
+
+            if self.cfg.AUGMENTATION.SENSOR_DROPOUT and self.dataset == 'train':
+                if np.random.rand() > self.cfg.AUGMENTATION.DROPOUT_PROBABILITY:
+                    no_optical = np.random.choice([True, False])
+                    if no_optical:
+                        s2_img = np.zeros(s2_img.shape)
+                    else:
+                        s1_img = np.zeros(s1_img.shape)
+
             img = np.concatenate([s1_img, s2_img], axis=-1)
 
         return np.nan_to_num(img).astype(np.float32), transform, crs

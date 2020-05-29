@@ -172,7 +172,7 @@ if __name__ == '__main__':
 
     dataset = 'urban_extraction_buildings'
     root_dir = STORAGE_DIR / dataset
-    cfg = 'baseline_sentinel2'
+    cfg = 'sensor_dropout'
 
     cfg_file = CFG_DIR / f'{cfg}.yaml'
     net_file = NET_DIR / cfg / 'best_net.pkl'

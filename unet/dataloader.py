@@ -45,15 +45,11 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         self.include_projection = include_projection
 
         # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
-        available_features_sentinel1 = ['VV', 'VH']
-        selected_features_sentinel1 = cfg.DATALOADER.SENTINEL1_BANDS
-        self.s1_feature_selection = self._get_feature_selection(available_features_sentinel1,
-                                                                selected_features_sentinel1)
+        s1_bands = ['VV', 'VH']
+        self.s1_indices = self._get_indices(s1_bands, cfg.DATALOADER.SENTINEL1_BANDS)
+        s2_bands = ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
+        self.s2_indices = self._get_indices(s2_bands, cfg.DATALOADER.SENTINEL2_BANDS)
 
-        available_features_sentinel2 = ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
-        selected_features_sentinel2 = cfg.DATALOADER.SENTINEL2_BANDS
-        self.s2_feature_selection = self._get_feature_selection(available_features_sentinel2,
-                                                                selected_features_sentinel2)
 
     def __getitem__(self, index):
 
@@ -87,18 +83,18 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         s1_file = self.root_dir / city / 'sentinel1' / f'sentinel1_{city}_{patch_id}.tif'
         s2_file = self.root_dir / city / 'sentinel2' / f'sentinel2_{city}_{patch_id}.tif'
 
-        # loading images and corresponding label
-        if not any(self.s1_feature_selection):  # only sentinel 2 features
+        # loading images
+        if not any(self.cfg.DATALOADER.SENTINEL1_BANDS):  # only sentinel 2 features
             img, transform, crs = read_tif(s2_file)
-            img = img[:, :, self.s2_feature_selection]
-        elif not any(self.s2_feature_selection):  # only sentinel 1 features
+            img = img[:, :, self.s2_indices]
+        elif not any(self.cfg.DATALOADER.SENTINEL2_BANDS):  # only sentinel 1 features
             img, transform, crs = read_tif(s1_file)
-            img = img[:, :, self.s1_feature_selection]
+            img = img[:, :, self.s1_indices]
         else:  # sentinel 1 and sentinel 2 features
             s1_img, transform, crs = read_tif(s1_file)
-            s1_img = s1_img[:, :, self.s1_feature_selection]
+            s1_img = s1_img[:, :, self.s1_indices]
             s2_img, transform, crs = read_tif(s2_file)
-            s2_img = s2_img[:, :, self.s2_feature_selection]
+            s2_img = s2_img[:, :, self.s2_indices]
 
             if self.cfg.AUGMENTATION.SENSOR_DROPOUT and self.dataset == 'train':
                 if np.random.rand() > self.cfg.AUGMENTATION.DROPOUT_PROBABILITY:
@@ -108,7 +104,7 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
                     else:
                         s1_img = np.zeros(s1_img.shape)
 
-            img = np.concatenate([s1_img, s2_img], axis=-1)
+            img = np.concatenate([s2_img, s1_img], axis=-1)
 
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
@@ -124,40 +120,9 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
-    def _get_feature_selection(self, features, selection):
-        feature_selection = [False for _ in range(len(features))]
-        for feature in selection:
-            i = features.index(feature)
-            feature_selection[i] = True
-        return feature_selection
-
-    # TODO: does not work anymore
-    def get_index(self, city: str, patch_id: str):
-
-        samples = self.metadata['samples']
-
-        for index, sample in enumerate(samples):
-            if sample['city'] == city and sample['patch_id'] == patch_id:
-                return index
-        return None
-
-    # TODO: does not work anymore
-    def classify_item(self, index, trained_net, device):
-
-        # getting item
-        item = self.__getitem__(index)
-        img = item['x'].to(device)
-
-        # applying trained network to item
-        y_pred = trained_net(img.unsqueeze(0))
-        y_pred = torch.sigmoid(y_pred)
-        y_pred = y_pred.cpu().detach().numpy()
-
-        # applying threshold
-        y_pred = y_pred[0,] > self.cfg.THRESH
-        y_pred = y_pred.transpose((1, 2, 0)).astype('uint8')
-
-        return y_pred, item.get('transform'), item.get('crs')
+    @ staticmethod
+    def _get_indices(bands, selection):
+        return [bands.index(band) for band in selection]
 
     def __len__(self):
         return self.length

@@ -23,6 +23,7 @@ MODEL:
   BACKBONE:
     ENABLED: False
     TYPE: 'resnet34'
+    PRETRAINED_WEIGHTS: None
 
 DATALOADER:
   NUM_WORKER: 8
@@ -35,8 +36,8 @@ DATALOADER:
 
 DATASETS:
   PATH: '/storage/shafner/urban_extraction/urban_extraction_buildings/'
-  TRAIN: ['dallas', 'miami', 'vancouver', 'toronto', 'newyork', 'kampala', 'amsterdam', 'copenhagen', 'zurich']
-  TEST: ['losangeles', 'daressalaam', 'stockholm']
+  TRAIN: ['dallas', 'miami', 'vancouver', 'toronto', 'newyork', 'kampala']
+  TEST: ['losangeles', 'daressalaam']
   USE_CLAHE_VARI: False
 
 TRAINER:

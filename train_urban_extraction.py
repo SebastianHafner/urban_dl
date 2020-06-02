@@ -143,30 +143,26 @@ def train_net(net, cfg):
             loss_set.append(loss.item())
             positive_pixels_set.extend(image_weight.cpu().numpy())
 
-            if global_step % 100 == 0 and global_step == 0:
-                # time per 100 steps
-                stop = timeit.default_timer()
-                time_per_n_batches= stop - start
-
-                max_mem, max_cache = gpu_stats()
-                print(f'step {global_step},  avg loss: {np.mean(loss_set):.4f}, cuda mem: {max_mem} MB, cuda cache: {max_cache} MB, time: {time_per_n_batches:.2f}s', flush=True)
-
-                if not cfg.DEBUG:
-                    wandb.log({
-                        'loss': np.mean(loss_set),
-                        'gpu_memory': max_mem,
-                        'time': time_per_n_batches,
-                        'total_positive_pixels': np.mean(positive_pixels_set),
-                        'step': global_step,
-                    })
-
-                loss_set = []
-                positive_pixels_set = []
-
-                start = stop
-
-            # torch.cuda.empty_cache()
             global_step += 1
+
+        stop = timeit.default_timer()
+        time_per_epoch = stop - start
+
+        max_mem, max_cache = gpu_stats()
+        print(f'step {global_step},  avg loss: {np.mean(loss_set):.4f}, cuda mem: {max_mem} MB, cuda cache: {max_cache} MB, time: {time_per_epoch:.2f}s', flush=True)
+
+        if not cfg.DEBUG:
+            wandb.log({
+                'loss': np.mean(loss_set),
+                'gpu_memory': max_mem,
+                'time': time_per_epoch,
+                'total_positive_pixels': np.mean(positive_pixels_set),
+                'step': global_step,
+            })
+
+        loss_set = []
+        positive_pixels_set = []
+        start = stop
 
         # evaluation on sample of train and test set after ever epoch
         test_f1 = model_eval(net, cfg, device, run_type='test', step=global_step, epoch=epoch)
@@ -181,6 +177,8 @@ def train_net(net, cfg):
                 model_name = 'best_net.pkl'
                 save_path = os.path.join(cfg.OUTPUT_DIR, model_name)
                 torch.save(net.state_dict(), save_path)
+
+
 
 
 def image_sampling_weight(samples_metadata):
@@ -302,11 +300,13 @@ if __name__ == '__main__':
     args = default_argument_parser().parse_known_args()[0]
     cfg = setup(args)
 
-    out_channels = cfg.MODEL.OUT_CHANNELS
     if cfg.MODEL.BACKBONE.ENABLED:
-        net = smp.Unet(cfg.MODEL.BACKBONE.TYPE,
-                       encoder_weights=None,
-                       decoder_channels = [512,256,128,64,32],
+        net = smp.Unet(
+            cfg.MODEL.BACKBONE.TYPE,
+            encoder_weights=cfg.MODEL.BACKBONE.PRETRAINED_WEIGHTS,
+            in_channels=cfg.MODEL.IN_CHANNELS,
+            classes=cfg.MODEL.OUT_CHANNELS,
+            activation=None,
         )
     else:
         net = UNet(cfg)

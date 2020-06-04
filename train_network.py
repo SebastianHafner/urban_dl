@@ -7,33 +7,23 @@ import datetime
 import enum
 import timeit
 
-import numpy as np
 import torch
 import torch.nn as nn
 from torch import optim
 from torch.utils import data as torch_data
-from torch.nn import functional as F
-from torchvision import transforms, utils
-from tensorboardX import SummaryWriter
-import segmentation_models_pytorch as smp
 
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-from experiment_manager.metrics import MultiThresholdMetric
-from matplotlib.colors import ListedColormap, BoundaryNorm
 from tabulate import tabulate
 import wandb
 
-from unet import UNet
-from unet.dataloader import UrbanExtractionDataset
-from unet.augmentations import *
+from networks.network_loader import load_network
 
-from experiment_manager.metrics import f1_score
+from utils.dataloader import UrbanExtractionDataset
+from utils.augmentations import *
+from utils.metrics import MultiThresholdMetric
+from utils.loss import criterion_from_cfg
+
 from experiment_manager.args import default_argument_parser
 from experiment_manager.config import new_config
-from experiment_manager.loss import soft_dice_loss, soft_dice_loss_balanced, jaccard_like_loss, jaccard_like_balanced_loss
-
-# import hp
 
 
 def train_net(net, cfg):
@@ -51,30 +41,7 @@ def train_net(net, cfg):
     print(tabulate(table, headers='keys', tablefmt="fancy_grid", ))
 
     optimizer = optim.Adam(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.0005)
-
-    # TODO: put in separate file
-    if cfg.MODEL.LOSS_TYPE == 'BCEWithLogitsLoss':
-        criterion = nn.BCEWithLogitsLoss()
-    elif cfg.MODEL.LOSS_TYPE == 'CrossEntropyLoss':
-        balance_weight = [cfg.MODEL.NEGATIVE_WEIGHT, cfg.MODEL.POSITIVE_WEIGHT]
-        balance_weight = torch.tensor(balance_weight).float().to(device)
-        criterion = nn.CrossEntropyLoss(weight=balance_weight)
-    elif cfg.MODEL.LOSS_TYPE == 'SoftDiceLoss':
-        criterion = soft_dice_loss
-    elif cfg.MODEL.LOSS_TYPE == 'SoftDiceBalancedLoss':
-        criterion = soft_dice_loss_balanced
-    elif cfg.MODEL.LOSS_TYPE == 'JaccardLikeLoss':
-        criterion = jaccard_like_loss
-    elif cfg.MODEL.LOSS_TYPE == 'ComboLoss':
-        criterion = lambda pred, gts: F.binary_cross_entropy_with_logits(pred, gts) + soft_dice_loss(pred, gts)
-    elif cfg.MODEL.LOSS_TYPE == 'WeightedComboLoss':
-        criterion = lambda pred, gts: 2 * F.binary_cross_entropy_with_logits(pred, gts) + soft_dice_loss(pred, gts)
-    elif cfg.MODEL.LOSS_TYPE == 'FrankensteinLoss':
-        criterion = lambda pred, gts: F.binary_cross_entropy_with_logits(pred, gts) + jaccard_like_balanced_loss(pred, gts)
-    elif cfg.MODEL.LOSS_TYPE == 'MeanSquareErrorLoss':
-        criterion = nn.MSELoss()
-    else:
-        raise Exception(f'unknown loss {cfg.MODEL.LOSS_TYPE}')
+    criterion = criterion_from_cfg(cfg)
 
     if torch.cuda.device_count() > 1:
         print(torch.cuda.device_count(), " GPUs!")
@@ -97,8 +64,7 @@ def train_net(net, cfg):
         'drop_last': True,
         'pin_memory': True,
     }
-    # sampler
-    # TODO: turn oversampling off
+
     if cfg.AUGMENTATION.IMAGE_OVERSAMPLING_TYPE == 'simple':
         image_p = image_sampling_weight(dataset.samples)
         sampler = torch_data.WeightedRandomSampler(weights=image_p, num_samples=len(image_p))
@@ -179,8 +145,6 @@ def train_net(net, cfg):
                 torch.save(net.state_dict(), save_path)
 
 
-
-
 def image_sampling_weight(samples_metadata):
     print('performing oversampling...', end='', flush=True)
     empty_image_baseline = 1000
@@ -189,6 +153,7 @@ def image_sampling_weight(samples_metadata):
     return sampling_weights
 
 
+# TODO: move to utils
 def model_eval(net, cfg, device, run_type='test', max_samples=1000, step=0, epoch=0):
 
     F1_THRESH = torch.linspace(0, 1, 100).to(device)
@@ -271,7 +236,6 @@ def inference_loop(net, cfg, device, callback=None, batch_size=1, run_type='test
                 break
 
 
-
 def gpu_stats():
     max_memory_allocated = torch.cuda.max_memory_allocated() / 1e6  # bytes to MB
     max_memory_cached = torch.cuda.max_memory_cached() / 1e6
@@ -280,7 +244,7 @@ def gpu_stats():
 
 def setup(args):
     cfg = new_config()
-    cfg.merge_from_file(f'configs/urban_extraction/{args.config_file}.yaml')
+    cfg.merge_from_file(f'configs/{args.config_file}.yaml')
     cfg.merge_from_list(args.opts)
     cfg.NAME = args.config_file
 
@@ -300,16 +264,7 @@ if __name__ == '__main__':
     args = default_argument_parser().parse_known_args()[0]
     cfg = setup(args)
 
-    if cfg.MODEL.BACKBONE.ENABLED:
-        net = smp.Unet(
-            cfg.MODEL.BACKBONE.TYPE,
-            encoder_weights=cfg.MODEL.BACKBONE.PRETRAINED_WEIGHTS,
-            in_channels=cfg.MODEL.IN_CHANNELS,
-            classes=cfg.MODEL.OUT_CHANNELS,
-            activation=None,
-        )
-    else:
-        net = UNet(cfg)
+    net = load_network(cfg)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # cudnn.benchmark = True # faster convolutions, but more memory
@@ -319,8 +274,8 @@ if __name__ == '__main__':
     if not cfg.DEBUG:
         wandb.init(
             name=cfg.NAME,
-            project='buildings',
-            tags=['run', 'localization', ],
+            project='urban_extraction',
+            tags=['run', 'urban', 'extraction', 'segmentation', ],
         )
 
     torch.manual_seed(cfg.SEED)
@@ -337,5 +292,3 @@ if __name__ == '__main__':
             sys.exit(0)
         except SystemExit:
             os._exit(0)
-
-

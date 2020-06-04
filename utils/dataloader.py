@@ -1,16 +1,12 @@
-#
-# load.py : utils on generators / lists of ids to transform from strings to
-#           cropped images and masks
-
-import os
 import torch
-import json
-from pathlib import Path
-from unet.utils import *
 from torchvision import transforms
-from unet.augmentations import *
-from preprocessing.utils import *
-from gee import sentinel1, sentinel2
+
+import json
+
+from pathlib import Path
+
+from utils.augmentations import *
+from utils.geotiff import *
 
 
 # dataset for urban extraction with building footprints
@@ -50,7 +46,6 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         s2_bands = ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
         self.s2_indices = self._get_indices(s2_bands, cfg.DATALOADER.SENTINEL2_BANDS)
 
-
     def __getitem__(self, index):
 
         # loading metadata of sample
@@ -59,7 +54,24 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         city = sample['city']
         patch_id = sample['patch_id']
 
-        img, geotransform, crs = self._get_sentinel_data(city, patch_id)
+        # loading images
+        if not any(self.cfg.DATALOADER.SENTINEL1_BANDS):  # only sentinel 2 features
+            img, _, _ = self._get_sentinel2_data(city, patch_id)
+        elif not any(self.cfg.DATALOADER.SENTINEL2_BANDS):  # only sentinel 1 features
+            img, _, _ = self._get_sentinel1_data(city, patch_id)
+        else:  # sentinel 1 and sentinel 2 features
+            s1_img, _, _ = self._get_sentinel1_data(city, patch_id)
+            s2_img, _, _ = self._get_sentinel2_data(city, patch_id)
+
+            if self.cfg.AUGMENTATION.SENSOR_DROPOUT and self.dataset == 'train':
+                if np.random.rand() > self.cfg.AUGMENTATION.DROPOUT_PROBABILITY:
+                    no_optical = np.random.choice([True, False])
+                    if no_optical:
+                        s2_img = np.zeros(s2_img.shape)
+                    else:
+                        s1_img = np.zeros(s1_img.shape)
+
+            img = np.concatenate([s1_img, s2_img], axis=-1)
 
         label, geotransform, crs = self._get_label_data(city, patch_id)
         img, label = self.transform((img, label))
@@ -78,34 +90,16 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
         return item
 
-    def _get_sentinel_data(self, city, patch_id):
+    def _get_sentinel1_data(self, city, patch_id):
+        file = self.root_dir / city / 'sentinel1' / f'sentinel1_{city}_{patch_id}.tif'
+        img, transform, crs = read_tif(file)
+        img = img[:, :, self.s1_indices]
+        return np.nan_to_num(img).astype(np.float32), transform, crs
 
-        s1_file = self.root_dir / city / 'sentinel1' / f'sentinel1_{city}_{patch_id}.tif'
-        s2_file = self.root_dir / city / 'sentinel2' / f'sentinel2_{city}_{patch_id}.tif'
-
-        # loading images
-        if not any(self.cfg.DATALOADER.SENTINEL1_BANDS):  # only sentinel 2 features
-            img, transform, crs = read_tif(s2_file)
-            img = img[:, :, self.s2_indices]
-        elif not any(self.cfg.DATALOADER.SENTINEL2_BANDS):  # only sentinel 1 features
-            img, transform, crs = read_tif(s1_file)
-            img = img[:, :, self.s1_indices]
-        else:  # sentinel 1 and sentinel 2 features
-            s1_img, transform, crs = read_tif(s1_file)
-            s1_img = s1_img[:, :, self.s1_indices]
-            s2_img, transform, crs = read_tif(s2_file)
-            s2_img = s2_img[:, :, self.s2_indices]
-
-            if self.cfg.AUGMENTATION.SENSOR_DROPOUT and self.dataset == 'train':
-                if np.random.rand() > self.cfg.AUGMENTATION.DROPOUT_PROBABILITY:
-                    no_optical = np.random.choice([True, False])
-                    if no_optical:
-                        s2_img = np.zeros(s2_img.shape)
-                    else:
-                        s1_img = np.zeros(s1_img.shape)
-
-            img = np.concatenate([s2_img, s1_img], axis=-1)
-
+    def _get_sentinel2_data(self, city, patch_id):
+        file = self.root_dir / city / 'sentinel2' / f'sentinel2_{city}_{patch_id}.tif'
+        img, transform, crs = read_tif(file)
+        img = img[:, :, self.s2_indices]
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
     def _get_label_data(self, city, patch_id):

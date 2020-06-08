@@ -33,7 +33,7 @@ def decoder_block(input_tensor, concat_tensor, num_filters):
 	return decoder
 
 
-def get_unet(cfg):
+def unet(cfg):
 
 	inputs = layers.Input(shape=[None, None, config_utils.n_bands(cfg)]) # 256
 	encoder0_pool, encoder0 = encoder_block(inputs, 32)  # 128

@@ -1,0 +1,9 @@
+_BASE_: "base.yaml"
+DEBUG: True
+TRAINER:
+  EPOCHS: 1
+  BATCH_SIZE: 2
+
+DATASETS:
+  TRAIN: ['toronto']
+  TEST: ['newyork']

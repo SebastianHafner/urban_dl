@@ -1,11 +1,13 @@
+import torch
+
 import segmentation_models_pytorch as smp
-
-
 from networks.unet import UNet, DualStreamUNet
 from networks.resnet import ResNet
 
+from pathlib import Path
 
-def load_network(cfg):
+
+def create_network(cfg):
 
     architecture = cfg.MODEL.TYPE
 
@@ -27,5 +29,14 @@ def load_network(cfg):
 
     else:
         net = UNet(cfg)
+
+    return net
+
+
+def load_network(cfg, pkl_file: Path):
+
+    net = create_network(cfg)
+    state_dict = torch.load(str(pkl_file), map_location=lambda storage, loc: storage)
+    net.load_state_dict(state_dict)
 
     return net

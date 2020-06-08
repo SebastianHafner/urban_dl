@@ -6,6 +6,8 @@ from tabulate import tabulate
 from collections import OrderedDict
 import yaml
 from fvcore.common.config import CfgNode as _CfgNode
+from pathlib import Path
+
 # TODO Initialize Cfg from Base Config
 class CfgNode(_CfgNode):
     """
@@ -116,6 +118,7 @@ class HPConfig():
     def __getattr__(self, name):
         return self.data[name]
 
+
 def config(name='default') -> HPConfig:
     '''
     Retrives a configuration (optionally, creating it) of the run. If no `name` provided, then 'default' is used
@@ -128,9 +131,9 @@ def config(name='default') -> HPConfig:
     # return _config_data[name]
     pass
 
-def load_from_yml():
-    '''
-    Load a HPConfig from a YML file
-    :return:
-    '''
-    pass
+
+# loading cfg
+def load_cfg(yaml_file: Path):
+    cfg = new_config()
+    cfg.merge_from_file(str(yaml_file))
+    return cfg

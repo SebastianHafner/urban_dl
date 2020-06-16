@@ -264,6 +264,11 @@ if __name__ == '__main__':
     args = default_argument_parser().parse_known_args()[0]
     cfg = setup(args)
 
+    torch.manual_seed(cfg.SEED)
+    np.random.seed(cfg.SEED)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
     net = load_network(cfg)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -277,11 +282,6 @@ if __name__ == '__main__':
             project='urban_extraction',
             tags=['run', 'urban', 'extraction', 'segmentation', ],
         )
-
-    torch.manual_seed(cfg.SEED)
-    np.random.seed(cfg.SEED)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
 
     try:
         train_net(net, cfg)

@@ -5,6 +5,7 @@ from tensorflow.python.keras import metrics
 
 from tensorflow_implementation.data_generator import DataGenerator
 from tensorflow_implementation.model import unet
+from tensorflow_implementation.callbacks import *
 
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -31,24 +32,6 @@ def setup(args):
     return cfg
 
 
-class DisplayCallback(tf.keras.callbacks.Callback):
-
-    def __init__(self, data_generator: DataGenerator, indices: list = []):
-        self.data_generator = data_generator
-        self.indices = indices
-
-    def on_epoch_end(self, epoch, logs=None):
-
-        title = f'Predictions after {epoch + 1} epochs'
-
-        for i in self.indices:
-            self.display_sample(i)
-
-    def display_sample(index: int):
-        img, label = self.data_generator.
-        pass
-
-
 # Segmentation tutorial https://www.tensorflow.org/tutorials/images/segmentation
 if __name__ == '__main__':
 
@@ -64,7 +47,11 @@ if __name__ == '__main__':
 
     # Adam optimizer
     optim = tf.compat.v1.train.AdamOptimizer(
-        learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-08, use_locking=False,
+        learning_rate=cfg.TRAINER.LR,
+        beta1=0.9,
+        beta2=0.999,
+        epsilon=1e-08,
+        use_locking=False,
         name='Adam'
     )
 
@@ -74,6 +61,8 @@ if __name__ == '__main__':
         metrics=['accuracy']
     )
 
+    callbacks = [DisplayCallback(validation_generator, [0])]
+
     # Train model on dataset
     model.fit(
         x=training_generator,
@@ -81,7 +70,7 @@ if __name__ == '__main__':
         use_multiprocessing=False,
         workers=cfg.DATALOADER.NUM_WORKER,
         verbose=True,
-        callbacks=[TestCallback()]
+        callbacks=callbacks
     )
 
     model.evaluate(

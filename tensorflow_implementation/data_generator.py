@@ -49,11 +49,8 @@ class DataGenerator(keras.utils.Sequence):
         # Generate indexes of the batch
         batch_indices = self.indices[index*self.batch_size:(index+1)*self.batch_size]
 
-        # Find list of samples
-        batch_samples = [self.samples[k] for k in batch_indices]
-
         # Generate data
-        X, y = self.__data_generation(batch_samples)
+        X, y = self.__data_generation(batch_indices)
 
         return X, y
 
@@ -63,35 +60,41 @@ class DataGenerator(keras.utils.Sequence):
         if self.shuffle:
             np.random.shuffle(self.indices)
 
-    def __data_generation(self, batch_samples):
+    def __data_generation(self, batch_indices: list):
         # Generates data containing batch_size samples  X : (n_samples, *dim, n_channels)
         # Initialization
         X = np.empty((self.batch_size, *self.dim, self.n_channels))
         y = np.empty((self.batch_size, *self.dim, 1), dtype=int)
 
         # Generate data
-        for i, sample in enumerate(batch_samples):
-
-            city, patch_id = sample['city'], sample['patch_id']
-
-            # loading images
-            if not any(self.cfg.DATALOADER.SENTINEL1_BANDS):  # only sentinel 2 features
-                img = self._get_sentinel2_data(city, patch_id)
-            elif not any(self.cfg.DATALOADER.SENTINEL2_BANDS):  # only sentinel 1 features
-                img = self._get_sentinel1_data(city, patch_id)
-            else:  # sentinel 1 and sentinel 2 features
-                s1_img = self._get_sentinel1_data(city, patch_id)
-                s2_img = self._get_sentinel2_data(city, patch_id)
-                img = np.concatenate([s1_img, s2_img], axis=-1)
-
-            label = self._get_label_data(city, patch_id)
-            if self.dataset == 'train':
-                img, label = self._transform(img, label)
+        for i, sample_index in enumerate(batch_indices):
+            img, label = self.get_sample(sample_index)
 
             # Store img and corresponding label
             X[i, ], y[i, ] = img, label
 
         return X, y
+
+    def get_sample(self, i: int):
+
+        sample = self.samples[i]
+        city, patch_id = sample['city'], sample['patch_id']
+
+        # loading images
+        if not any(self.cfg.DATALOADER.SENTINEL1_BANDS):  # only sentinel 2 features
+            img = self._get_sentinel2_data(city, patch_id)
+        elif not any(self.cfg.DATALOADER.SENTINEL2_BANDS):  # only sentinel 1 features
+            img = self._get_sentinel1_data(city, patch_id)
+        else:  # sentinel 1 and sentinel 2 features
+            s1_img = self._get_sentinel1_data(city, patch_id)
+            s2_img = self._get_sentinel2_data(city, patch_id)
+            img = np.concatenate([s1_img, s2_img], axis=-1)
+
+        label = self._get_label_data(city, patch_id)
+        if self.dataset == 'train':
+            img, label = self._transform(img, label)
+
+        return img, label
 
     def _get_sentinel1_data(self, city, patch_id):
         file = self.root_dir / city / 'sentinel1' / f'sentinel1_{city}_{patch_id}.tif'

@@ -154,7 +154,9 @@ def image_sampling_weight(samples_metadata):
 
 
 # TODO: move to utils
-def model_eval(net, cfg, device, run_type='test', max_samples=1000, step=0, epoch=0):
+def model_eval(net, cfg, device: str, thresholds: list, run_type: str, epoch: int, step: int, max_samples: int = 1000):
+
+    thresholds = thresholds.to(device)
 
     F1_THRESH = torch.linspace(0, 1, 100).to(device)
     y_true_set = []

@@ -15,7 +15,7 @@ from torch.utils import data as torch_data
 from tabulate import tabulate
 import wandb
 
-from networks.network_loader import load_network
+from networks.network_loader import create_network
 
 from utils.dataloader import UrbanExtractionDataset
 from utils.augmentations import *
@@ -48,7 +48,9 @@ def train_net(net, cfg):
         net = nn.DataParallel(net)
 
     net.to(device)
+
     global_step = 0
+    best_test_f1 = 0
     epochs = cfg.TRAINER.EPOCHS
 
     use_edge_loss = cfg.MODEL.LOSS_TYPE == 'FrankensteinEdgeLoss'
@@ -72,16 +74,16 @@ def train_net(net, cfg):
         dataloader_kwargs['shuffle'] = False
     dataloader = torch_data.DataLoader(dataset, **dataloader_kwargs)
 
-    best_test_f1 = 0  # used to save network
     for epoch in range(epochs):
+        print(f'Starting epoch {epoch + 1}/{epochs}.')
+
         start = timeit.default_timer()
-        print('Starting epoch {}/{}.'.format(epoch + 1, epochs))
         epoch_loss = 0
+        loss_set = []
+        positive_pixels_set = []  # Used to evaluated image over sampling techniques
 
         net.train()
 
-        loss_set = []
-        positive_pixels_set = []  # Used to evaluated image over sampling techniques
         for i, batch in enumerate(dataloader):
             optimizer.zero_grad()
 
@@ -92,9 +94,11 @@ def train_net(net, cfg):
             y_pred = net(x)
 
             if cfg.MODEL.LOSS_TYPE == 'CrossEntropyLoss':
+                # TODO: may not be needed anymore
                 # y_pred = y_pred # Cross entropy loss doesn't like single channel dimension
                 y_gts = y_gts.long()  # Cross entropy loss requires a long as target
             if use_edge_loss:
+                # TODO: edge loss is not being used anyway
                 edge_mask = y_gts[:, [-1]]
                 y_gts = y_gts[:, [0]]
                 loss = criterion(y_pred, y_gts, edge_mask, cfg.TRAINER.EDGE_LOSS_SCALE)
@@ -110,6 +114,7 @@ def train_net(net, cfg):
             positive_pixels_set.extend(image_weight.cpu().numpy())
 
             global_step += 1
+            # end of batch
 
         stop = timeit.default_timer()
         time_per_epoch = stop - start
@@ -119,30 +124,30 @@ def train_net(net, cfg):
 
         if not cfg.DEBUG:
             wandb.log({
-                'loss': np.mean(loss_set),
+                'loss': loss.item(),
+                'avg_loss': np.mean(loss_set),
                 'gpu_memory': max_mem,
                 'time': time_per_epoch,
                 'total_positive_pixels': np.mean(positive_pixels_set),
                 'step': global_step,
             })
 
-        loss_set = []
-        positive_pixels_set = []
-        start = stop
-
         # evaluation on sample of train and test set after ever epoch
-        test_f1 = model_eval(net, cfg, device, run_type='test', step=global_step, epoch=epoch)
-        train_f1 = model_eval(net, cfg, device, max_samples=100, run_type='train', step=global_step, epoch=epoch)
+        train_thresholds = torch.linspace(0, 1, 101)
+        train_maxF1, train_maxThresh = model_eval(net, cfg, device, train_thresholds, 'train', epoch, global_step)
+
+        test_threshold = torch.tensor([train_maxThresh])
+        test_f1, _ = model_eval(net, cfg, device, test_threshold, 'test', epoch, global_step)
 
         if test_f1 > best_test_f1:
-            print(f'BEST PERFORMANCE SO FAR!', flush=True)
+            print(f'BEST PERFORMANCE SO FAR! <------------', flush=True)
             best_test_f1 = test_f1
 
-            if cfg.SAVE_MODEL and not cfg.DEBUG:
-                print(f'saving network', flush=True)
-                model_name = 'best_net.pkl'
-                save_path = os.path.join(cfg.OUTPUT_DIR, model_name)
-                torch.save(net.state_dict(), save_path)
+    if cfg.SAVE_MODEL and not cfg.DEBUG:
+        print(f'saving network', flush=True)
+        model_name = 'final_net.pkl'
+        save_path = os.path.join(cfg.OUTPUT_DIR, model_name)
+        torch.save(net.state_dict(), save_path)
 
 
 def image_sampling_weight(samples_metadata):
@@ -153,16 +158,14 @@ def image_sampling_weight(samples_metadata):
     return sampling_weights
 
 
-# TODO: move to utils
-def model_eval(net, cfg, device: str, thresholds: list, run_type: str, epoch: int, step: int, max_samples: int = 1000):
+def model_eval(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: int, step: int,
+               max_samples: int = 1000):
 
-    thresholds = thresholds.to(device)
-
-    F1_THRESH = torch.linspace(0, 1, 100).to(device)
     y_true_set = []
     y_pred_set = []
 
-    measurer = MultiThresholdMetric(F1_THRESH)
+    thresholds = thresholds.to(device)
+    measurer = MultiThresholdMetric(thresholds)
 
     def evaluate(y_true, y_pred):
         y_true = y_true.detach()
@@ -183,6 +186,7 @@ def model_eval(net, cfg, device: str, thresholds: list, run_type: str, epoch: in
     argmaxF1 = f1.argmax()
     best_fpr = fpr[argmaxF1]
     best_fnr = fnr[argmaxF1]
+    best_thresh = thresholds[argmaxF1]
     print(f'{maxF1.item():.3f}', flush=True)
 
     if not cfg.DEBUG:
@@ -195,7 +199,7 @@ def model_eval(net, cfg, device: str, thresholds: list, run_type: str, epoch: in
                    'epoch': epoch,
                    })
 
-    return maxF1.item()
+    return maxF1.item(), best_thresh.item()
 
 
 def inference_loop(net, cfg, device, callback=None, batch_size=1, run_type='test', max_samples=999999999,
@@ -266,7 +270,13 @@ if __name__ == '__main__':
     args = default_argument_parser().parse_known_args()[0]
     cfg = setup(args)
 
-    net = load_network(cfg)
+    # make training deterministic
+    torch.manual_seed(cfg.SEED)
+    np.random.seed(cfg.SEED)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    net = create_network(cfg)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # cudnn.benchmark = True # faster convolutions, but more memory
@@ -279,11 +289,6 @@ if __name__ == '__main__':
             project='urban_extraction',
             tags=['run', 'urban', 'extraction', 'segmentation', ],
         )
-
-    torch.manual_seed(cfg.SEED)
-    np.random.seed(cfg.SEED)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
 
     try:
         train_net(net, cfg)

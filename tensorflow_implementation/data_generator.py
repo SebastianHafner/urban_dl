@@ -147,3 +147,5 @@ class DataGenerator(keras.utils.Sequence):
     @ staticmethod
     def _get_indices(bands, selection):
         return [bands.index(band) for band in selection]
+
+

@@ -1,5 +1,5 @@
 SEED: 42 # best seed so far 42
-DEBUG: False
+DEBUG: True
 THRESH: 0.0 # Best threshold (only to be filled after running final model evaluation)
 OUTPUT_BASE_DIR: ('/storage/shafner/run_logs/unet/')
 SAVE_MODEL: True
@@ -33,7 +33,7 @@ DATASETS:
 TRAINER:
   LR: 8e-4
   BATCH_SIZE: 16
-  EPOCHS: 100
+  EPOCHS: 10
 
 AUGMENTATION:
   IMAGE_OVERSAMPLING_TYPE: 'none' # [none, simple]

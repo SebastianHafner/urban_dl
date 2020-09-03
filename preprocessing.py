@@ -1,7 +1,6 @@
-import shutil, json, cv2
+import shutil, json
 from pathlib import Path
-from gee import sentinel1, sentinel2
-from preprocessing.utils import *
+from utils.geotiff import *
 import numpy as np
 
 
@@ -409,13 +408,14 @@ def preprocess(path: Path, city: str, patch_size: int = 256):
 if __name__ == '__main__':
 
     root_dir = Path('/storage/shafner/urban_extraction/urban_extraction_buildings/')
+    dataset_path = Path('C:/Users/shafner/urban_extraction/data/dummy_data')
 
     train_cities = ['dallas', 'miami', 'vancouver', 'toronto', 'newyork', 'dallas', 'kampala']
     test_cities = ['losangeles', 'daressalaam']
 
-    cities = ['zurich', 'copenhagen', 'amsterdam', 'stockholm']
+    cities = ['miami', 'houston']
     for city in cities:
-        path = root_dir / city
+        path = dataset_path / city
         preprocess(path, city, 256)
 
     # create_city_split(root_dir, train_cities=train_cities, test_cities=test_cities)

@@ -394,7 +394,7 @@ def preprocess(path: Path, city: str, patch_size: int = 256):
         'label': 'buildings',
         'city': city,
         'sentinel1_features': ['VV', 'VH'],
-        'sentinel2_features': ['B2', 'B3', 'B4', 'B8', 'B11', 'B12'],
+        'sentinel2_features': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'],
         'samples': samples
     }
     dataset_file = path / f'samples.json'
@@ -407,8 +407,8 @@ def preprocess(path: Path, city: str, patch_size: int = 256):
 
 if __name__ == '__main__':
 
-    root_dir = Path('/storage/shafner/urban_extraction/urban_extraction_buildings/')
-    dataset_path = Path('C:/Users/shafner/urban_extraction/data/dummy_data')
+    # dataset_path = Path('C:/Users/shafner/urban_extraction/data/dummy_data')
+    dataset_path = Path('/storage/shafner/urban_extraction/urban_extraction/')
 
     train_cities = ['dallas', 'miami', 'vancouver', 'toronto', 'newyork', 'dallas', 'kampala']
     test_cities = ['losangeles', 'daressalaam']

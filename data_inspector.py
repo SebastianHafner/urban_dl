@@ -1,26 +1,48 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 from pathlib import Path
 from utils.geotiff import *
+import json
 
 
-def visualize_triplet(path: Path, city: str, patch_id: int):
+def visualize_triplet(path: Path, sample: dict):
 
     S2_BAND_INDICES = [2, 1, 0]
 
-    s1_file = path / city / 'sentinel1' / f'sentinel1_{city}_patch{patch_id}.tif'
-    s2_file = path / city / 'sentinel2' / f'sentinel2_{city}_patch{patch_id}.tif'
-    buildings_file = path / city / 'buildings' / f'buildings_{city}_patch{patch_id}.tif'
+    city = sample['city']
+    patch_id = sample['patch_id']
 
-    s1_data, _, _ = read_tif(s1_file)
+
+
+
+
+
+
+
+
+    # sentinel-2
+    s2_file = path / city / 'sentinel2' / f'sentinel2_{city}_{patch_id}.tif'
     s2_data, _, _ = read_tif(s2_file)
-    buildings_data, _, _ = read_tif(buildings_file)
-
     fig, axs = plt.subplots(1, 3, figsize=(10, 4))
-    axs[0].imshow(s2_data[:, :, S2_BAND_INDICES])
-    axs[1].imshow(s1_data[:, :, 0])
-    axs[2].imshow(buildings_data[:, :, 0])
+    true_color_img = s2_data[:, :, S2_BAND_INDICES] / 0.3
+    axs[0].imshow(true_color_img)
+
+    # sentinel-1
+    s1_file = path / city / 'sentinel1' / f'sentinel1_{city}_{patch_id}.tif'
+    s1_data, _, _ = read_tif(s1_file)
+    vv_img = s1_data[:, :, 0]
+    axs[1].imshow(vv_img, cmap='gray')
+
+    # building label
+    buildings_file = path / city / 'buildings' / f'buildings_{city}_{patch_id}.tif'
+    buildings_data, _, _ = read_tif(buildings_file)
+    buildings_img = buildings_data > 0
+    cmap = colors.ListedColormap(['white', 'red'])
+    boundaries = [0, 0.5, 1]
+    norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
+    axs[2].imshow(buildings_img, cmap=cmap, norm=norm)
 
     for ax in axs:
         ax.set_axis_off()
@@ -30,12 +52,16 @@ def visualize_triplet(path: Path, city: str, patch_id: int):
 
 if __name__ == '__main__':
 
-    DATASET_PATH = Path('/storage/shafner/urban_extraction/')
-    CITY = 'miami'
+    DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction')
+    CITY = 'houston'
 
-    n = 5
-    max_patch_id = 100
+    n = 10
+    samples_file = DATASET_PATH / CITY / 'samples.json'
+    with open(str(samples_file)) as f:
+        metadata = json.load(f)
+        samples = metadata['samples']
+
     # TODO: get maximum patch id for city
-    patch_ids = np.random.randint(0, max_patch_id, n)
-    for patch_id in range(n):
-        visualize_triplet(DATASET_PATH, CITY, patch_id)
+    sample_selection = list(np.random.choice(samples, size=n))
+    for sample in sample_selection:
+        visualize_triplet(DATASET_PATH, sample)

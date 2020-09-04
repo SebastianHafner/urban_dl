@@ -43,7 +43,7 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
         s1_bands = ['VV', 'VH']
         self.s1_indices = self._get_indices(s1_bands, cfg.DATALOADER.SENTINEL1_BANDS)
-        s2_bands = ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
+        s2_bands = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12']
         self.s2_indices = self._get_indices(s2_bands, cfg.DATALOADER.SENTINEL2_BANDS)
 
     def __getitem__(self, index):
@@ -55,6 +55,7 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         patch_id = sample['patch_id']
 
         # loading images
+        # TODO: change to include mode from cfg (optical, sar or fusion)
         if not any(self.cfg.DATALOADER.SENTINEL1_BANDS):  # only sentinel 2 features
             img, _, _ = self._get_sentinel2_data(city, patch_id)
         elif not any(self.cfg.DATALOADER.SENTINEL2_BANDS):  # only sentinel 1 features

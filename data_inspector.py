@@ -14,14 +14,6 @@ def visualize_triplet(path: Path, sample: dict):
     city = sample['city']
     patch_id = sample['patch_id']
 
-
-
-
-
-
-
-
-
     # sentinel-2
     s2_file = path / city / 'sentinel2' / f'sentinel2_{city}_{patch_id}.tif'
     s2_data, _, _ = read_tif(s2_file)

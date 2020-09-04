@@ -347,7 +347,7 @@ def create_city_split(root_dir: Path, train_cities: list, test_cities: list):
             'label': 'buildings',
             'cities': cities,
             'sentinel1_features': ['VV', 'VH'],
-            'sentinel2_features': ['B2', 'B3', 'B4', 'B8', 'B11', 'B12'],
+            'sentinel2_features': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'],
             'dataset': dataset,
             'samples': samples
         }
@@ -356,6 +356,7 @@ def create_city_split(root_dir: Path, train_cities: list, test_cities: list):
             json.dump(data, f, ensure_ascii=False, indent=4)
 
 
+# TODO: add progress bar and clean up functions (tis one seems to be similar to process city)
 def preprocess(path: Path, city: str, patch_size: int = 256):
 
     sentinel1_dir = path / 'sentinel1'
@@ -402,23 +403,34 @@ def preprocess(path: Path, city: str, patch_size: int = 256):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 
-
+def sites_split(sites: list, train_fraction: float):
+    n = len(sites)
+    n_train = int(n * train_fraction)
+    print(n_train)
+    training_sites = list(np.random.choice(sites, size=n_train, replace=False))
+    validation_sites = [site for site in sites if site not in training_sites]
+    print(training_sites, validation_sites)
 
 
 if __name__ == '__main__':
 
     # dataset_path = Path('C:/Users/shafner/urban_extraction/data/dummy_data')
     dataset_path = Path('/storage/shafner/urban_extraction/urban_extraction/')
+    #
+    # cities = ['miami', 'houston']
+    # for city in cities:
+    #     path = dataset_path / city
+    #     preprocess(path, city, 256)
 
-    train_cities = ['dallas', 'miami', 'vancouver', 'toronto', 'newyork', 'dallas', 'kampala']
-    test_cities = ['losangeles', 'daressalaam']
+    # northamerican_sites = ['kansascity', 'houston', 'lasvegas', 'charlston', 'dallas', 'atlanta', 'sanfrancisco',
+    #                        'losangeles', 'toronto', 'albuquerque', 'seattle', 'vancouver', 'newyork', 'montreal',
+    #                        'quebec', 'minneapolis', 'denver', 'phoenix', 'saltlakecity', 'winnipeg', 'calgary', 'miami',
+    #                        'columbus']
+    # sites_split(northamerican_sites, 0.8)
 
-    cities = ['miami', 'houston']
-    for city in cities:
-        path = dataset_path / city
-        preprocess(path, city, 256)
-
-    # create_city_split(root_dir, train_cities=train_cities, test_cities=test_cities)
+    train_cities = ['houston']
+    test_cities = ['miami']
+    create_city_split(dataset_path, train_cities=train_cities, test_cities=test_cities)
     # create_train_test_split(root_dir, split=0.1, seed=7, delete_edge_files=True)
     # create_inference_file(root_dir, delete_edge_files=True)
 

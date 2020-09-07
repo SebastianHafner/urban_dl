@@ -2,6 +2,7 @@ import shutil, json
 from pathlib import Path
 from utils.geotiff import *
 import numpy as np
+from tqdm import tqdm
 
 
 # getting list of feature names based on input parameters
@@ -38,265 +39,9 @@ def is_edge_tile(file: Path, tile_size=256):
     return True
 
 
-# preprocessing dataset
-def preprocess_dataset(data_dir: Path, save_dir: Path, cities: list, year: int, labels: str,
-                       s1_features: list, s2_features: list, split: float, seed: int = 42):
-
-    # setting up save dir
-    if not save_dir.exists():
-        save_dir.mkdir()
-
-    # container to store all the metadata
-    dataset_metadata = {
-        'cities': cities,
-        'year': year,
-        'sentinel1': s1_features,
-        'sentinel2': s2_features,
-        'labels': labels
-    }
-
-    # getting label files from first label (used edge detection in loop)
-    label_dir = data_dir / labels[0]
-    label_files = [file for file in label_dir.glob('**/*')]
-
-    # generating random numbers for split
-    np.random.seed(seed)
-    random_numbers = list(np.random.uniform(size=len(label_files)))
-
-    # main loop splitting into train test, removing edge tiles, and collecting metadata
-    samples = {'train': [], 'test': []}
-    for i, (label_file, random_num) in enumerate(zip(label_files, random_numbers)):
-        if not is_edge_tile(label_file):
-
-            sample_metadata = {}
-
-            _, city, patch_id = label_file.stem.split('_')
-
-            sample_metadata['city'] = city
-            sample_metadata['patch_id'] = patch_id
-            sample_metadata['img_weight'] = get_image_weight(label_file)
-
-            if random_num > split:
-                train_test_dir = save_dir / 'train'
-                samples['train'].append(sample_metadata)
-            else:
-                train_test_dir = save_dir / 'test'
-                samples['test'].append(sample_metadata)
-
-            if not train_test_dir.exists():
-                train_test_dir.mkdir()
-
-            # copying all files into new directory
-            for j, product in enumerate(['sentinel1', 'sentinel2', *labels]):
-
-                if product == 'sentinel1':
-                    file_name = f'S1_{city}_{year}_{patch_id}.tif'
-                elif product == 'sentinel2':
-                    file_name = f'S2_{city}_{year}_{patch_id}.tif'
-                else:  # for all labels
-                    file_name = f'{product}_{city}_{patch_id}.tif'
-
-                src_file = data_dir / product / file_name
-                new_file = train_test_dir / product / file_name
-                if not new_file.parent.exists():
-                    new_file.parent.mkdir()
-                shutil.copy(str(src_file), str(new_file))
-
-
-    # writing metadata to .json file for train and test set
-    for train_test in ['train', 'test']:
-        dataset_metadata['dataset'] = train_test
-        dataset_metadata['samples'] = samples[train_test]
-        metadata_file = save_dir / train_test / 'metadata.json'
-        with open(str(metadata_file), 'w', encoding='utf-8') as f:
-            json.dump(dataset_metadata, f, ensure_ascii=False, indent=4)
-
-
-def create_train_test_split(root_dir: Path, split: float = 0.3, delete_edge_files: bool = False, seed: int = None):
-
-    # loading metadata from download
-    dl_file = root_dir / 'download_metadata.json'
-    assert(dl_file.exists())
-    with open(str(dl_file)) as f:
-        download = json.load(f)
-
-    # unpacking required data
-    year = download['year']
-    labels = download['labels']
-    polarizations = download['sentinel1']['polarizations']
-    orbits = download['sentinel1']['orbits']
-    s1_metrics = download['sentinel1']['metrics']
-    bands = download['sentinel2']['bands']
-    indices = download['sentinel2']['indices']
-    s2_metrics = download['sentinel2']['metrics']
-
-    # getting label files from first label (used edge detection in loop)
-    label_dir = root_dir / labels[0]
-    label_files = [file for file in label_dir.glob('**/*')]
-
-    # generating random numbers for split
-    np.random.seed(seed)
-    random_numbers = list(np.random.uniform(size=len(label_files)))
-
-    # main loop splitting into train test, removing edge tiles, and collecting metadata
-    samples = {'train': [], 'test': [], 'inference': []}
-    for i, (label_file, random_num) in enumerate(zip(label_files, random_numbers)):
-
-        _, city, patch_id = label_file.stem.split('_')
-
-        if not is_edge_tile(label_file):
-
-            sample_metadata = {
-                'city': city,
-                'patch_id': patch_id,
-                'img_weight': get_image_weight(label_file)
-            }
-
-            if random_num > split:
-                samples['train'].append(sample_metadata)
-                sample_metadata['dataset'] = 'train'
-            else:
-                samples['test'].append(sample_metadata)
-                sample_metadata['dataset'] = 'test'
-
-            samples['inference'].append(sample_metadata)
-
-        else:
-            if delete_edge_files:
-                # deleting all edge files
-                for j, product in enumerate(['sentinel1', 'sentinel2', *labels]):
-
-                    if product == 'sentinel1':
-                        file_name = f'{product}_{city}_{year}_{patch_id}.tif'
-                    elif product == 'sentinel2':
-                        file_name = f'{product}_{city}_{year}_{patch_id}.tif'
-                    else:  # for all labels
-                        file_name = f'{product}_{city}_{patch_id}.tif'
-
-                    edge_file = root_dir / product / file_name
-                    edge_file.unlink()
-
-    # writing metadata to .json file for train and test set
-    s1_features = sentinel1.get_feature_names(polarizations, orbits, s1_metrics)
-    s2_features = sentinel2.get_feature_names(bands, indices, s2_metrics)
-    for dataset in ['train', 'test', 'inference']:
-        data = {
-            'labels': download['labels'],
-            'cities': download['cities'],
-            'year': download['year'],
-            'sentinel1_features': s1_features,
-            'sentinel2_features': s2_features,
-            'dataset': dataset,
-            'samples': samples[dataset]
-        }
-        dataset_file = root_dir / f'{dataset}.json'
-        with open(str(dataset_file), 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-
-
-def create_inference_file(root_dir: Path, delete_edge_files: bool = False):
-
-    # loading metadata from download
-    dl_file = root_dir / 'download_metadata.json'
-    assert(dl_file.exists())
-    with open(str(dl_file)) as f:
-        download = json.load(f)
-
-    # unpacking required data
-    year = download['year']
-    polarizations = download['sentinel1']['polarizations']
-    orbits = download['sentinel1']['orbits']
-    s1_metrics = download['sentinel1']['metrics']
-    bands = download['sentinel2']['bands']
-    indices = download['sentinel2']['indices']
-    s2_metrics = download['sentinel2']['metrics']
-
-    # getting label files from first label (used edge detection in loop)
-    s1_dir = root_dir / 'sentinel1'
-    s1_files = [file for file in s1_dir.glob('**/*')]
-
-    # main loop removing edge tiles, and collecting metadata
-    samples = []
-    for i, s1_file in enumerate(s1_files):
-
-        _, city, _, patch_id = s1_file.stem.split('_')
-
-        if not is_edge_tile(s1_file):
-            print(f'Non-edge tile: {city}_{patch_id}')
-
-            sample_metadata = {
-                'city': city,
-                'patch_id': patch_id,
-            }
-            samples.append(sample_metadata)
-
-        else:
-            print(f'Edge tile: {city}_{patch_id}')
-            if delete_edge_files:
-                # deleting all edge files
-                for product in ['sentinel1', 'sentinel2']:
-
-                    file_name = f'{product}_{city}_{year}_{patch_id}.tif'
-                    edge_file = root_dir / product / file_name
-                    edge_file.unlink()
-
-    # writing metadata to .json file for train and test set
-    s1_features = sentinel1.get_feature_names(polarizations, orbits, s1_metrics)
-    s2_features = sentinel2.get_feature_names(bands, indices, s2_metrics)
-    for dataset in ['train', 'test', 'inference']:
-        data = {
-            'labels': download['labels'],
-            'cities': download['cities'],
-            'year': download['year'],
-            'sentinel1_features': s1_features,
-            'sentinel2_features': s2_features,
-            'dataset': dataset,
-            'samples': samples
-        }
-        inference_file = root_dir / 'inference.json'
-        with open(str(inference_file), 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-
-
-def write_metadata_file(root_dir: Path, year: int, cities: list, s1_features: list, s2_features: list):
-
-    # TODO: use this function also in the main preprocessing function to generate metadata file
-
-    # setting up raw data directories
-    s1_dir = root_dir / 'sentinel1'
-
-    # container to store all the metadata
-    dataset_metadata = {
-        'cities': cities,
-        'year': year,
-        'sentinel1': s1_features,
-        'sentinel2': s2_features,
-    }
-
-    # getting all sentinel1 files
-    s1_files = [file for file in s1_dir.glob('**/*')]
-
-    # main loop splitting into train test, removing edge tiles, and collecting metadata
-    samples = []
-    for i, s1_file in enumerate(s1_files):
-        if not is_edge_tile(s1_file):
-
-            sample_metadata = {}
-
-            _, city, _, patch_id = s1_file.stem.split('_')
-
-            sample_metadata['city'] = city
-            sample_metadata['patch_id'] = patch_id
-
-            samples.append(sample_metadata)
-
-    # writing metadata to .json file for train and test set
-    dataset_metadata['samples'] = samples
-    with open(str(root_dir / 'metadata.json'), 'w', encoding='utf-8') as f:
-        json.dump(dataset_metadata, f, ensure_ascii=False, indent=4)
-
-
 def process_city(root_dir: Path, city: str, patch_size: int = 256):
+
+    print(f'processing {city}')
 
     sentinel1_dir = root_dir / city / 'sentinel1'
     sentinel2_dir = root_dir / city / 'sentinel2'
@@ -304,9 +49,8 @@ def process_city(root_dir: Path, city: str, patch_size: int = 256):
     buildings_files = [file for file in buildings_dir.glob('**/*')]
 
     samples = []
-    for i, buildings_file in enumerate(buildings_files):
+    for i, buildings_file in enumerate(tqdm(buildings_files)):
         _, _, patch_id = buildings_file.stem.split('_')
-        print(f'{city} {patch_id}')
 
         sentinel1_file = sentinel1_dir / f'sentinel1_{city}_{patch_id}.tif'
         sentinel2_file = sentinel2_dir / f'sentinel2_{city}_{patch_id}.tif'
@@ -359,15 +103,16 @@ def create_city_split(root_dir: Path, train_cities: list, test_cities: list):
 # TODO: add progress bar and clean up functions (tis one seems to be similar to process city)
 def preprocess(path: Path, city: str, patch_size: int = 256):
 
+    print(f'preprocessing {city}')
+
     sentinel1_dir = path / 'sentinel1'
     sentinel2_dir = path / 'sentinel2'
     buildings_dir = path / 'buildings'
     buildings_files = [file for file in buildings_dir.glob('**/*')]
 
     samples = []
-    for i, buildings_file in enumerate(buildings_files):
+    for i, buildings_file in enumerate(tqdm(buildings_files)):
         _, _, patch_id = buildings_file.stem.split('_')
-        print(f'{city} {patch_id}')
 
         sentinel1_file = sentinel1_dir / f'sentinel1_{city}_{patch_id}.tif'
         sentinel2_file = sentinel2_dir / f'sentinel2_{city}_{patch_id}.tif'
@@ -416,66 +161,19 @@ if __name__ == '__main__':
 
     # dataset_path = Path('C:/Users/shafner/urban_extraction/data/dummy_data')
     dataset_path = Path('/storage/shafner/urban_extraction/urban_extraction/')
-    #
-    # cities = ['miami', 'houston']
-    # for city in cities:
-    #     path = dataset_path / city
-    #     preprocess(path, city, 256)
 
-    # northamerican_sites = ['kansascity', 'houston', 'lasvegas', 'charlston', 'dallas', 'atlanta', 'sanfrancisco',
-    #                        'losangeles', 'toronto', 'albuquerque', 'seattle', 'vancouver', 'newyork', 'montreal',
-    #                        'quebec', 'minneapolis', 'denver', 'phoenix', 'saltlakecity', 'winnipeg', 'calgary', 'miami',
-    #                        'columbus']
+    training = ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
+                'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
+                'charlston', 'seattle', 'daressalam']
+    validation = ['houston', 'sanfrancisco', 'vancouver', 'newyork', 'calgary', 'kampala']
+    all_sites = training + validation
+    for site in all_sites:
+        path = dataset_path / site
+        preprocess(path, site, 256)
+
     # sites_split(northamerican_sites, 0.8)
 
-    train_cities = ['houston']
-    test_cities = ['miami']
-    create_city_split(dataset_path, train_cities=train_cities, test_cities=test_cities)
-    # create_train_test_split(root_dir, split=0.1, seed=7, delete_edge_files=True)
-    # create_inference_file(root_dir, delete_edge_files=True)
-
-    # cities = ['NewYork']
-    # year = 2017
-    # labels = ['bing', 'wsf']
-    # bucket = 'urban_extraction_bing_raw'
-    # data_dir = gee_dir / bucket
-    # save_dir = save_dir / bucket[:-4]
-    #
-    #
-    # split = 0.2
-    #
-    # # sentinel 1 parameters
-    # s1params = {
-    #     'polarizations': ['VV', 'VH'],
-    #     'metrics': ['mean']
-    # }
-    #
-    # # sentinel 2 parameters
-    # s2params = {
-    #     'bands': ['Blue', 'Green', 'Red', 'RedEdge1', 'RedEdge2', 'RedEdge3', 'NIR', 'RedEdge4', 'SWIR1', 'SWIR2'],
-    #     'indices': [],
-    #     'metrics': ['median']
-    # }
-    #
-    # # generating feature names for sentinel 1 and sentinel 2
-    # sentinel1_features = sentinel1_feature_names(polarizations=s1params['polarizations'],
-    #                                              metrics=s1params['metrics'])
-    # sentinel2_features = sentinel2_feature_names(bands=s2params['bands'],
-    #                                              indices=s2params['indices'],
-    #                                              metrics=s2params['metrics'])
-
-    # preprocess_dataset(data_dir, save_dir, cities, year, labels, sentinel1_features, sentinel2_features, split)
-
-    # cities = ['Stockholm', 'Beijing', 'Milan']
-    # year = 2019
-    # root_dir = Path('/storage/shafner/urban_extraction/urban_extraction_2019')
-    # write_metadata_file(
-    #     root_dir=root_dir,
-    #     year=year,
-    #     cities=cities,
-    #     s1_features=sentinel1_features,
-    #     s2_features=sentinel2_features
-    # )
+    create_city_split(dataset_path, train_cities=training, test_cities=validation)
 
 
 

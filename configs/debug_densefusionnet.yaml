@@ -1,13 +1,13 @@
 SEED: 42 # best seed so far 42
-DEBUG: False
+DEBUG: True
 THRESH: 0.0 # Best threshold (only to be filled after running final model evaluation)
 OUTPUT_BASE_DIR: ('/storage/shafner/run_logs/unet/')
-SAVE_MODEL: True
+SAVE_MODEL: False
 
 MODEL:
-  TYPE: 'unet'
+  TYPE: 'densefusionnet'
   OUT_CHANNELS: 1
-  IN_CHANNELS: 8
+  IN_CHANNELS: 12
   LOSS_TYPE: 'FrankensteinLoss'
   POSITIVE_WEIGHT: 250
   NEGATIVE_WEIGHT: 1
@@ -22,14 +22,14 @@ DATALOADER:
   SHUFFLE: True
   LABEL: 'buildings'
   LABEL_THRESH: 0.0
-  MODE: 'optical'
+  MODEL: 'fusion'
   SENTINEL1_BANDS: ['VV', 'VH']
-  SENTINEL2_BANDS: ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
+  SENTINEL2_BANDS: ['B2', 'B3', 'B4', 'B5', 'B6', 'B6', 'B8', 'B8A', 'B11', 'B12']
 
 DATASETS:
-  PATH: '/storage/shafner/urban_extraction/urban_extraction_buildings/'
-  TRAIN: ['dallas', 'miami', 'vancouver', 'toronto', 'newyork', 'kampala']
-  TEST: ['losangeles', 'daressalaam']
+  PATH: '/storage/shafner/urban_extraction/urban_extraction/'
+  TRAIN: ['houston']
+  TEST: ['miami']
 
 TRAINER:
   LR: 8e-4

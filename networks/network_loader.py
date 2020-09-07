@@ -2,6 +2,7 @@ import torch
 
 import segmentation_models_pytorch as smp
 from networks.unet import UNet, DualStreamUNet
+from networks.densefusionnet import DenseFusionNet
 from networks.resnet import ResNet
 
 from pathlib import Path
@@ -26,6 +27,9 @@ def create_network(cfg):
 
     elif architecture == 'dualstreamunet':
         net = DualStreamUNet(cfg)
+
+    elif architecture == 'densefusionnet':
+        net = DenseFusionNet(cfg)
 
     else:
         net = UNet(cfg)

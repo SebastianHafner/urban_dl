@@ -12,7 +12,7 @@ from utils.geotiff import *
 # dataset for urban extraction with building footprints
 class UrbanExtractionDataset(torch.utils.data.Dataset):
 
-    def __init__(self, cfg, dataset: str, include_projection: bool = False):
+    def __init__(self, cfg, dataset: str, include_projection: bool = False, no_augmentations: bool = False):
         super().__init__()
 
         self.cfg = cfg
@@ -21,14 +21,15 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
         self.dataset = dataset
         if dataset == 'train':
-            self.transform = compose_transformations(cfg)
             self.cities = cfg.DATASETS.TRAIN
         elif dataset == 'test':
-            self.transform = transforms.Compose([Numpy2Torch()])
             self.cities = cfg.DATASETS.TEST
         else:  # used to load only 1 city passed as dataset
-            self.transform = transforms.Compose([Numpy2Torch()])
             self.cities = [dataset]
+
+        self.no_augmentations = no_augmentations
+        self.transform = transforms.Compose([Numpy2Torch()]) if no_augmentations else compose_transformations(cfg)
+
 
         self.samples = []
         for city in self.cities:
@@ -44,6 +45,7 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         s1_bands = ['VV', 'VH']
         self.s1_indices = self._get_indices(s1_bands, cfg.DATALOADER.SENTINEL1_BANDS)
         s2_bands = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12']
+        # s2_bands = ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
         self.s2_indices = self._get_indices(s2_bands, cfg.DATALOADER.SENTINEL2_BANDS)
 
     def __getitem__(self, index):

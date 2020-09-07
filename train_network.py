@@ -120,7 +120,7 @@ def train_net(net, cfg):
         time_per_epoch = stop - start
 
         max_mem, max_cache = gpu_stats()
-        print(f'step {global_step},  avg loss: {np.mean(loss_set):.4f}, cuda mem: {max_mem} MB, cuda cache: {max_cache} MB, time: {time_per_epoch:.2f}s', flush=True)
+        # print(f'step {global_step},  avg loss: {np.mean(loss_set):.4f}, cuda mem: {max_mem} MB, cuda cache: {max_cache} MB, time: {time_per_epoch:.2f}s', flush=True)
 
         if not cfg.DEBUG:
             wandb.log({
@@ -143,11 +143,10 @@ def train_net(net, cfg):
             print(f'BEST PERFORMANCE SO FAR! <------------', flush=True)
             best_test_f1 = test_f1
 
-    if cfg.SAVE_MODEL and not cfg.DEBUG:
+    if cfg.SAVE_MODEL:
         print(f'saving network', flush=True)
-        model_name = 'final_net.pkl'
-        save_path = os.path.join(cfg.OUTPUT_DIR, model_name)
-        torch.save(net.state_dict(), save_path)
+        net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}.pkl'
+        torch.save(net.state_dict(), net_file)
 
 
 def image_sampling_weight(samples_metadata):
@@ -175,7 +174,7 @@ def model_eval(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch:
 
         measurer.add_sample(y_true, y_pred)
 
-    dataset = UrbanExtractionDataset(cfg=cfg, dataset=run_type)
+    dataset = UrbanExtractionDataset(cfg=cfg, dataset=run_type, no_augmentations=True)
     inference_loop(net, cfg, device, evaluate, max_samples=max_samples, dataset=dataset)
 
     print(f'Computing {run_type} F1 score ', end=' ', flush=True)
@@ -254,12 +253,7 @@ def setup(args):
     cfg.merge_from_list(args.opts)
     cfg.NAME = args.config_file
 
-    if args.log_dir: # Override Output dir
-        cfg.OUTPUT_DIR = path.join(args.log_dir, args.config_file)
-    else:
-        cfg.OUTPUT_DIR = path.join(cfg.OUTPUT_BASE_DIR, args.config_file)
-    os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-
+    # TODO: might not be necessary -> remove
     if args.data_dir:
         cfg.DATASETS.TRAIN = (args.data_dir,)
     return cfg

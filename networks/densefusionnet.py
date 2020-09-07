@@ -28,12 +28,13 @@ class DenseFusionNet(nn.Module):
         self.enc_block3_sar = Down(256, 512, DoubleConv)
         self.enc_block4_sar = Down(512, 512, DoubleConv)
 
-        # fusion decoder
         self.bottleneck_fusion = DoubleConv(1024, 512)
-        self.dec_block1 = Up(1536, 256, DoubleConv)
-        self.dec_block2 = Up(768, 128, DoubleConv)
-        self.dec_block3 = Up(384, 64, DoubleConv)
-        self.dec_block4 = Up(192, 64, DoubleConv)
+
+        # fusion decoder
+        self.dec_block1 = DenseFusionUp(512, 512, 512, 256, DoubleConv)
+        self.dec_block2 = DenseFusionUp(256, 256, 256, 128, DoubleConv)
+        self.dec_block3 = DenseFusionUp(128, 128, 128, 64, DoubleConv)
+        self.dec_block4 = DenseFusionUp(64, 64, 64, 64, DoubleConv)
         self.outc = OutConv(64, 1)
 
     def forward(self, x_in):
@@ -41,24 +42,39 @@ class DenseFusionNet(nn.Module):
         x_in_sar = x_in[:, :self.in_sar, :, :]
         x_in_optical = x_in[:, self.in_sar:, :, :]
 
+        # 64 filters
         x1_optical = self.inc_optical(x_in_optical)
+        # 128 filters
         x2_optical = self.enc_block1_optical(x1_optical)
+        # 256 filters
         x3_optical = self.enc_block2_optical(x2_optical)
+        # 512 filters
         x4_optical = self.enc_block3_optical(x3_optical)
+        # 512 filters
         x5_optical = self.enc_block4_optical(x4_optical)
 
+        # 64 filters
         x1_sar = self.inc_sar(x_in_sar)
+        # 128 filters
         x2_sar = self.enc_block1_optical(x1_sar)
+        # 256 filters
         x3_sar = self.enc_block2_optical(x2_sar)
+        # 512 filters
         x4_sar = self.enc_block3_optical(x3_sar)
+        # 512 filters
         x5_sar = self.enc_block4_optical(x4_sar)
 
+        # 1024 filters
         x5_concat = torch.cat([x5_optical, x5_sar], dim=1)
+        # 512 filters
         x5_fused = self.bottleneck_fusion(x5_concat)
-
-        x6_fused = self.dec_block4(x5_fused, x4_optical, x4_sar)
-        x7_fused = self.dec_block4(x6_fused, x3_optical, x3_sar)
-        x8_fused = self.dec_block4(x7_fused, x2_optical, x2_sar)
+        #
+        x6_fused = self.dec_block1(x5_fused, x4_optical, x4_sar)
+        #
+        x7_fused = self.dec_block2(x6_fused, x3_optical, x3_sar)
+        #
+        x8_fused = self.dec_block3(x7_fused, x2_optical, x2_sar)
+        #
         x9_fused = self.dec_block4(x8_fused, x1_optical, x1_sar)
 
         x_out = self.outc(x9_fused)
@@ -135,12 +151,16 @@ class Up(nn.Module):
         return x
 
 
-class FusionUp(nn.Module):
-    def __init__(self, in_ch, out_ch, conv_block):
-        super(FusionUp, self).__init__()
+class DenseFusionUp(nn.Module):
+    def __init__(self, in_ch_fused, in_ch_optical, in_ch_sar, out_ch, conv_block):
+        super(DenseFusionUp, self).__init__()
 
-        self.up = nn.ConvTranspose2d(in_ch // 2, in_ch // 2, 2, stride=2)
-        self.conv = conv_block(in_ch, out_ch)
+        self.in_ch_fused = in_ch_fused
+        self.in_ch_optical = in_ch_optical
+        self.in_ch_sar = in_ch_sar
+        self.out_ch = out_ch
+        self.up = nn.ConvTranspose2d(in_ch_fused, in_ch_fused, kernel_size=2, stride=2)
+        self.conv = conv_block(in_ch_fused + in_ch_optical + in_ch_sar, out_ch)
 
     def forward(self, x1, x2_optical, x2_sar):
         x1 = self.up(x1)

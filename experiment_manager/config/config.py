@@ -137,3 +137,4 @@ def load_cfg(yaml_file: Path):
     cfg = new_config()
     cfg.merge_from_file(str(yaml_file))
     return cfg
+

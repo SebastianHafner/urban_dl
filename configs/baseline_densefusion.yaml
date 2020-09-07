@@ -4,7 +4,7 @@ DEBUG: False
 THRESH: 0.0
 
 MODEL:
-  TYPE: 'unet'
+  TYPE: 'densefusionnet'
   IN_CHANNELS: 12
 
 DATALOADER:

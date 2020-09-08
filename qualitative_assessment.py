@@ -32,29 +32,29 @@ def random_selection(config_name: str, site: str, n: int):
         sample = dataset.__getitem__(index)
         patch_id = sample['patch_id']
 
-        fig, axs = plt.subplots(1, 3, figsize=(10, 4))
-        for ax in axs:
-            ax.set_axis_off()
+        fig, axs = plt.subplots(2, 3, figsize=(10, 6))
 
         optical_file = DATASET_PATH / site / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
-        plot_optical(axs[0], optical_file)
+        plot_optical(axs[0, 0], optical_file, show_title=True)
+        plot_optical(axs[0, 1], optical_file, vis='false_color', show_title=True)
+
+        sar_file = DATASET_PATH / site / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
+        plot_sar(axs[0, 2], sar_file, show_title=True)
+
 
         label = cfg.DATALOADER.LABEL
         label_file = DATASET_PATH / site / label / f'{label}_{site}_{patch_id}.tif'
-        plot_buildings(axs[1], label_file)
+        plot_buildings(axs[1, 0], label_file, show_title=True)
 
         with torch.no_grad():
             x = sample['x'].to(device)
             logits = net(x.unsqueeze(0))
             prob = torch.sigmoid(logits[0, 0, ])
+            prob = prob.detach().cpu().numpy()
             pred = prob > cfg.THRESH
-            pred = pred.detach().cpu().numpy()
-            cmap = colors.ListedColormap(['white', 'red'])
-            boundaries = [0, 0.5, 1]
-            norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
-            axs[2].imshow(pred, cmap=cmap, norm=norm)
 
-
+            plot_activation(axs[1, 2], prob, show_title=True)
+            plot_prediction(axs[1, 1], pred, show_title=True)
 
         plt.show()
 
@@ -94,9 +94,12 @@ def performance_selection(config_name: str, site: str, n: int, reverse: bool = F
         sample = dataset.__getitem__(index)
         patch_id = sample['patch_id']
 
-        fig, axs = plt.subplots(1, 3, figsize=(10, 4))
+        fig, axs = plt.subplots(1, 4, figsize=(10, 4))
         for ax in axs:
             ax.set_axis_off()
+
+        sar_file = DATASET_PATH / site / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
+        plot_sar(axs[0], sar_file)
 
         optical_file = DATASET_PATH / site / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
         plot_optical(axs[0], optical_file)
@@ -120,6 +123,6 @@ def performance_selection(config_name: str, site: str, n: int, reverse: bool = F
 
 
 if __name__ == '__main__':
-    config_name = 'baseline_optical'
-    random_selection(config_name, 'calgary', 20)
+    config_name = 'baseline_fusion'
+    random_selection(config_name, 'houston', 20)
     # performance_selection(config_name, 'calgary', 10, reverse=True)

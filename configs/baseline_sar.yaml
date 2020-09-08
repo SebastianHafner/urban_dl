@@ -1,0 +1,13 @@
+_BASE_: "base_v2.yaml"
+SAVE_MODEL: True
+DEBUG: False
+THRESH: 0.43
+
+MODEL:
+  TYPE: 'unet'
+  IN_CHANNELS: 2
+
+DATALOADER:
+  MODE: 'fusion'
+  SENTINEL1_BANDS: ['VV', 'VH']
+  SENTINEL2_BANDS: []

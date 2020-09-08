@@ -1,7 +1,7 @@
 _BASE_: "base_v2.yaml"
 SAVE_MODEL: True
 DEBUG: False
-THRESH: 0.0
+THRESH: 0.45
 
 MODEL:
   TYPE: 'unet'

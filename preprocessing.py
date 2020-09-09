@@ -5,23 +5,6 @@ import numpy as np
 from tqdm import tqdm
 
 
-# getting list of feature names based on input parameters
-def sentinel1_feature_names(polarizations: list, metrics: list):
-    names = []
-    for orbit in ['asc', 'desc']:
-        for pol in polarizations:
-            for metric in metrics:
-                names.append(f'{pol}_{orbit}_{metric}')
-    return names
-
-
-# getting list of feature names based on input parameters
-def sentinel2_feature_names(bands: list, indices: list, metrics: list):
-    band_names = [f'{band}_{metric}' for band in bands for metric in metrics]
-    index_names = [f'{index}_{metric}' for index in indices for metric in metrics]
-    return band_names + index_names
-
-
 # computing the percentage of urban pixels for a file
 def get_image_weight(file: Path):
     if not file.exists():
@@ -31,79 +14,29 @@ def get_image_weight(file: Path):
     return int(n_urban)
 
 
-def is_edge_tile(file: Path, tile_size=256):
+def has_only_zeros(file: Path) -> bool:
     arr, _, _ = read_tif(file)
-    arr = np.array(arr)
-    if arr.shape[0] == tile_size and arr.shape[1] == tile_size:
-        return False
-    return True
+    sum_ = np.sum(arr)
+    if sum_ == 0:
+        return True
+    return False
 
 
-def process_city(root_dir: Path, city: str, patch_size: int = 256):
-
-    print(f'processing {city}')
-
-    sentinel1_dir = root_dir / city / 'sentinel1'
-    sentinel2_dir = root_dir / city / 'sentinel2'
-    buildings_dir = root_dir / city / 'buildings'
-    buildings_files = [file for file in buildings_dir.glob('**/*')]
-
-    samples = []
-    for i, buildings_file in enumerate(tqdm(buildings_files)):
-        _, _, patch_id = buildings_file.stem.split('_')
-
-        sentinel1_file = sentinel1_dir / f'sentinel1_{city}_{patch_id}.tif'
-        sentinel2_file = sentinel2_dir / f'sentinel2_{city}_{patch_id}.tif'
-
-        for file in [buildings_file, sentinel1_file, sentinel2_file]:
-            arr, transform, crs = read_tif(file)
-            i, j, _ = arr.shape
-            if i > patch_size or j > patch_size:
-                arr = arr[:patch_size, :patch_size, ]
-                write_tif(file, arr, transform, crs)
-            elif i < patch_size or j < patch_size:
-                raise Exception(f'invalid file found {buildings_file.name}')
-            else:
-                pass
-
-        sample = {
-            'city': city,
-            'patch_id': patch_id,
-            'img_weight': get_image_weight(buildings_file)
-        }
-        samples.append(sample)
-
-    return samples
+def crop_patch(file: Path, patch_size: int):
+    arr, transform, crs = read_tif(file)
+    i, j, _ = arr.shape
+    if i > patch_size or j > patch_size:
+        arr = arr[:patch_size, :patch_size, ]
+        write_tif(file, arr, transform, crs)
+    elif i < patch_size or j < patch_size:
+        raise Exception(f'invalid file found {file.name}')
+    else:
+        pass
 
 
-def create_city_split(root_dir: Path, train_cities: list, test_cities: list):
+def preprocess(path: Path, site: str, patch_size: int = 256):
 
-    for dataset in ['train', 'test']:
-        cities = train_cities if dataset == 'train' else test_cities
-
-        samples = []
-        for city in cities:
-            city_samples = process_city(root_dir, city, 256)
-            samples = samples + city_samples
-
-        # writing metadata to .json file for train and test set
-        data = {
-            'label': 'buildings',
-            'cities': cities,
-            'sentinel1_features': ['VV', 'VH'],
-            'sentinel2_features': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'],
-            'dataset': dataset,
-            'samples': samples
-        }
-        dataset_file = root_dir / f'{dataset}.json'
-        with open(str(dataset_file), 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-
-
-# TODO: add progress bar and clean up functions (tis one seems to be similar to process city)
-def preprocess(path: Path, city: str, patch_size: int = 256):
-
-    print(f'preprocessing {city}')
+    print(f'preprocessing {site}')
 
     sentinel1_dir = path / 'sentinel1'
     sentinel2_dir = path / 'sentinel2'
@@ -112,24 +45,22 @@ def preprocess(path: Path, city: str, patch_size: int = 256):
 
     samples = []
     for i, buildings_file in enumerate(tqdm(buildings_files)):
+
         _, _, patch_id = buildings_file.stem.split('_')
+        crop_patch(buildings_file, patch_size)
 
-        sentinel1_file = sentinel1_dir / f'sentinel1_{city}_{patch_id}.tif'
-        sentinel2_file = sentinel2_dir / f'sentinel2_{city}_{patch_id}.tif'
+        sentinel1_file = sentinel1_dir / f'sentinel1_{site}_{patch_id}.tif'
+        crop_patch(sentinel1_file, patch_size)
+        if has_only_zeros(sentinel1_file):
+            raise Exception(f'only zeros {sentinel1_file.name}')
 
-        for file in [buildings_file, sentinel1_file, sentinel2_file]:
-            arr, transform, crs = read_tif(file)
-            i, j, _ = arr.shape
-            if i > patch_size or j > patch_size:
-                arr = arr[:patch_size, :patch_size, ]
-                write_tif(file, arr, transform, crs)
-            elif i < patch_size or j < patch_size:
-                raise Exception(f'invalid file found {buildings_file.name}')
-            else:
-                pass
+        sentinel2_file = sentinel2_dir / f'sentinel2_{site}_{patch_id}.tif'
+        crop_patch(sentinel2_file, patch_size)
+        if has_only_zeros(sentinel2_file):
+            raise Exception(f'only zeros {sentinel2_file.name}')
 
         sample = {
-            'city': city,
+            'site': site,
             'patch_id': patch_id,
             'img_weight': get_image_weight(buildings_file)
         }
@@ -138,7 +69,7 @@ def preprocess(path: Path, city: str, patch_size: int = 256):
     # writing data to json file
     data = {
         'label': 'buildings',
-        'city': city,
+        'site': site,
         'sentinel1_features': ['VV', 'VH'],
         'sentinel2_features': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'],
         'samples': samples
@@ -173,7 +104,7 @@ if __name__ == '__main__':
 
     # sites_split(northamerican_sites, 0.8)
 
-    create_city_split(dataset_path, train_cities=training, test_cities=validation)
+
 
 
 

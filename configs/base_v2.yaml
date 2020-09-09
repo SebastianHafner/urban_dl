@@ -28,15 +28,20 @@ DATALOADER:
 
 DATASETS:
   PATH: '/storage/shafner/urban_extraction/urban_extraction/'
-  TRAIN: ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas', 'minneapolis',
-          'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity', 'charlston', 'seattle',
-          'daressalam']
-  TEST: ['houston', 'sanfrancisco', 'vancouver', 'newyork', 'calgary', 'kampala']
+  SITES:
+    TRAINING: ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
+               'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
+               'charlston', 'seattle', 'daressalam']
+    VALIDATION: ['houston', 'sanfrancisco', 'vancouver', 'newyork', 'calgary', 'kampala']
 
 TRAINER:
   LR: 1e-5
   BATCH_SIZE: 16
-  EPOCHS: 100
+  EPOCHS: 200
+  EARLY_STOPPING: True
+  PATIENCE: 5
+
+
 
 AUGMENTATION:
   IMAGE_OVERSAMPLING_TYPE: 'none' # [none, simple]

@@ -20,20 +20,19 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         self.root_dir = Path(cfg.DATASETS.PATH)
 
         self.dataset = dataset
-        if dataset == 'train':
-            self.cities = cfg.DATASETS.TRAIN
-        elif dataset == 'test':
-            self.cities = cfg.DATASETS.TEST
+        if dataset == 'training':
+            self.sites = cfg.DATASETS.SITES.TRAINING
+        elif dataset == 'validation':
+            self.sites = cfg.DATASETS.SITES.VALIDATION
         else:  # used to load only 1 city passed as dataset
-            self.cities = [dataset]
+            self.sites = [dataset]
 
         self.no_augmentations = no_augmentations
         self.transform = transforms.Compose([Numpy2Torch()]) if no_augmentations else compose_transformations(cfg)
 
-
         self.samples = []
-        for city in self.cities:
-            samples_file = self.root_dir / city / 'samples.json'
+        for site in self.sites:
+            samples_file = self.root_dir / site / 'samples.json'
             with open(str(samples_file)) as f:
                 metadata = json.load(f)
             self.samples += metadata['samples']
@@ -45,7 +44,6 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         s1_bands = ['VV', 'VH']
         self.s1_indices = self._get_indices(s1_bands, cfg.DATALOADER.SENTINEL1_BANDS)
         s2_bands = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12']
-        # s2_bands = ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
         self.s2_indices = self._get_indices(s2_bands, cfg.DATALOADER.SENTINEL2_BANDS)
 
     def __getitem__(self, index):
@@ -53,20 +51,20 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         # loading metadata of sample
         sample = self.samples[index]
 
-        city = sample['city']
+        site = sample['site']
         patch_id = sample['patch_id']
 
         # loading images
         # TODO: change to include mode from cfg (optical, sar or fusion)
         if not any(self.cfg.DATALOADER.SENTINEL1_BANDS):  # only sentinel 2 features
-            img, _, _ = self._get_sentinel2_data(city, patch_id)
+            img, _, _ = self._get_sentinel2_data(site, patch_id)
         elif not any(self.cfg.DATALOADER.SENTINEL2_BANDS):  # only sentinel 1 features
-            img, _, _ = self._get_sentinel1_data(city, patch_id)
+            img, _, _ = self._get_sentinel1_data(site, patch_id)
         else:  # sentinel 1 and sentinel 2 features
-            s1_img, _, _ = self._get_sentinel1_data(city, patch_id)
-            s2_img, _, _ = self._get_sentinel2_data(city, patch_id)
+            s1_img, _, _ = self._get_sentinel1_data(site, patch_id)
+            s2_img, _, _ = self._get_sentinel2_data(site, patch_id)
 
-            if self.cfg.AUGMENTATION.SENSOR_DROPOUT and self.dataset == 'train':
+            if self.cfg.AUGMENTATION.SENSOR_DROPOUT and self.dataset == 'training':
                 if np.random.rand() > self.cfg.AUGMENTATION.DROPOUT_PROBABILITY:
                     no_optical = np.random.choice([True, False])
                     if no_optical:
@@ -76,13 +74,13 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
             img = np.concatenate([s1_img, s2_img], axis=-1)
 
-        label, geotransform, crs = self._get_label_data(city, patch_id)
+        label, geotransform, crs = self._get_label_data(site, patch_id)
         img, label = self.transform((img, label))
 
         item = {
             'x': img,
             'y': label,
-            'city': city,
+            'site': site,
             'patch_id': patch_id,
             'image_weight': np.float(sample['img_weight'])
         }
@@ -93,24 +91,24 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
         return item
 
-    def _get_sentinel1_data(self, city, patch_id):
-        file = self.root_dir / city / 'sentinel1' / f'sentinel1_{city}_{patch_id}.tif'
+    def _get_sentinel1_data(self, site, patch_id):
+        file = self.root_dir / site / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
         img, transform, crs = read_tif(file)
         img = img[:, :, self.s1_indices]
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
-    def _get_sentinel2_data(self, city, patch_id):
-        file = self.root_dir / city / 'sentinel2' / f'sentinel2_{city}_{patch_id}.tif'
+    def _get_sentinel2_data(self, site, patch_id):
+        file = self.root_dir / site / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
         img, transform, crs = read_tif(file)
         img = img[:, :, self.s2_indices]
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
-    def _get_label_data(self, city, patch_id):
+    def _get_label_data(self, site, patch_id):
 
         label = self.cfg.DATALOADER.LABEL
         threshold = self.cfg.DATALOADER.LABEL_THRESH
 
-        label_file = self.root_dir / city / label / f'{label}_{city}_{patch_id}.tif'
+        label_file = self.root_dir / site / label / f'{label}_{site}_{patch_id}.tif'
         img, transform, crs = read_tif(label_file)
         if threshold >= 0:
             img = img > threshold
@@ -125,7 +123,7 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         return self.length
 
     def __str__(self):
-        return f'Dataset with {self.length} samples across {len(self.cities)} cities.'
+        return f'Dataset with {self.length} samples across {len(self.sites)} sites.'
 
 
 # dataset for classifying a scene

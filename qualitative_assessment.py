@@ -122,7 +122,12 @@ def performance_selection(config_name: str, site: str, n: int, reverse: bool = F
         plt.show()
 
 
+def input_comparison(config_names: list, site: str, n: int):
+    pass
+    # TODO: to be implemented
+
+
 if __name__ == '__main__':
-    config_name = 'baseline_fusion'
-    random_selection(config_name, 'houston', 20)
+    config_name = 'baseline_optical'
+    random_selection(config_name, 'montreal', 20)
     # performance_selection(config_name, 'calgary', 10, reverse=True)

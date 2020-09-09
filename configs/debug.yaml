@@ -1,2 +1,3 @@
-_BASE_: "base.yaml"
+_BASE_: "base_v2.yaml"
 DEBUG: True
+SAVE_MODEL: False

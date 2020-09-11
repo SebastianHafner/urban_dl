@@ -32,6 +32,7 @@ def plot_sar(ax, file: Path, vis: str = 'VV', show_title: bool = False):
 def plot_buildings(ax, file: Path, show_title: bool = False):
     img, _, _ = read_tif(file)
     img = img > 0
+    img = img if len(img.shape) == 2 else img[:, :, 0]
     cmap = colors.ListedColormap(['white', 'red'])
     boundaries = [0, 0.5, 1]
     norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)

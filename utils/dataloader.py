@@ -222,3 +222,92 @@ class InferenceDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.length
+
+
+# dataset for urban extraction with building footprints
+class SpaceNet7Dataset(torch.utils.data.Dataset):
+
+    def __init__(self, cfg):
+        super().__init__()
+
+        self.cfg = cfg
+        self.root_dir = Path(cfg.DATASETS.TESTING)
+
+        # getting patches
+        self.buildings_path = self.root_dir / self.cfg.DATALOADER.LABEL
+        file_names = [f.stem for f in self.buildings_path.glob('**/*')]
+
+        def get_aoi_id(file_name):
+            file_name_parts = file_name.split('_')
+            return '_'.join(file_name_parts[1:])
+
+        self.aoi_ids = [get_aoi_id(file_name) for file_name in file_names]
+        self.length = len(self.aoi_ids)
+
+        self.transform = transforms.Compose([Numpy2Torch()])
+
+        # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
+        s1_bands = ['VV', 'VH']
+        self.s1_indices = self._get_indices(s1_bands, cfg.DATALOADER.SENTINEL1_BANDS)
+        s2_bands = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12']
+        self.s2_indices = self._get_indices(s2_bands, cfg.DATALOADER.SENTINEL2_BANDS)
+
+    def __getitem__(self, index):
+
+        # loading metadata of sample
+        aoi_id = self.aoi_ids[index]
+
+        # loading images
+        if not any(self.cfg.DATALOADER.SENTINEL1_BANDS):  # only sentinel 2 features
+            img, _, _ = self._get_sentinel2_data(aoi_id)
+        elif not any(self.cfg.DATALOADER.SENTINEL2_BANDS):  # only sentinel 1 features
+            img, _, _ = self._get_sentinel1_data(aoi_id)
+        else:  # sentinel 1 and sentinel 2 features
+            s1_img, _, _ = self._get_sentinel1_data(aoi_id)
+            s2_img, _, _ = self._get_sentinel2_data(aoi_id)
+            img = np.concatenate([s1_img, s2_img], axis=-1)
+
+        label, geotransform, crs = self._get_label_data(aoi_id)
+        img, label = self.transform((img, label))
+
+        item = {
+            'x': img,
+            'y': label,
+            'aoi_id': aoi_id
+        }
+
+        return item
+
+    def _get_sentinel1_data(self, aoi_id):
+        file = self.root_dir / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
+        img, transform, crs = read_tif(file)
+        img = img[:, :, self.s1_indices]
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_sentinel2_data(self, aoi_id):
+        file = self.root_dir / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
+        img, transform, crs = read_tif(file)
+        img = img[:, :, self.s2_indices]
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_label_data(self, aoi_id):
+
+        label = self.cfg.DATALOADER.LABEL
+        threshold = self.cfg.DATALOADER.LABEL_THRESH
+
+        label_file = self.root_dir / label / f'{label}_{aoi_id}.tif'
+        img, transform, crs = read_tif(label_file)
+        if threshold >= 0:
+            img = img > threshold
+
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    @staticmethod
+    def _get_indices(bands, selection):
+        return [bands.index(band) for band in selection]
+
+    def __len__(self):
+        return self.length
+
+    def __str__(self):
+        return f'Dataset with {self.length} samples across {len(self.sites)} sites.'

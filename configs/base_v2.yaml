@@ -33,6 +33,7 @@ DATASETS:
                'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
                'charlston', 'seattle', 'daressalam']
     VALIDATION: ['houston', 'sanfrancisco', 'vancouver', 'newyork', 'calgary', 'kampala']
+  TESTING: '/storage/shafner/urban_extraction/urban_extraction/sn7/'
 
 TRAINER:
   LR: 1e-5

@@ -5,12 +5,12 @@ import ee
 import utm
 import pandas as pd
 
-SPACENET7_PATH = Path('C:/Users/hafne/urban_extraction/data/spacenet7/train')
+SPACENET7_PATH = Path('C:/Users/shafner/urban_extraction/data/spacenet7/train')
 
 
-def extract_bbox(aoi_name: str):
+def extract_bbox(aoi_id: str):
 
-    root_path = SPACENET7_PATH / aoi_name
+    root_path = SPACENET7_PATH / aoi_id
     img_folder = root_path / 'images'
     all_img_files = list(img_folder.glob('**/*.tif'))
     img_file = all_img_files[0]
@@ -37,12 +37,55 @@ def epsg_utm(bbox):
     return f'EPSG:326{zone_number}' if lat > 0 else f'EPSG:327{zone_number}'
 
 
+def building_footprint_features(aoi_id, year, month):
+    root_path = SPACENET7_PATH / aoi_id
+    label_folder = root_path / 'labels_match'
+    label_file = label_folder / f'global_monthly_{year}_{month:02d}_mosaic_{aoi_id}_Buildings.geojson'
+
+    with open(str(label_file)) as f:
+        label_data = json.load(f)
+
+    features = label_data['features']
+    new_features = []
+    for feature in features:
+        coords = feature['geometry']['coordinates']
+        geom = ee.Geometry.Polygon(coords, proj='EPSG:3857').transform('EPSG:4326')
+        new_feature = ee.Feature(geom)
+        new_features.append(new_feature)
+    return new_features
+
+
+def construct_buildings_file(metadata_file: Path):
+
+    metadata = pd.read_csv(metadata_file)
+
+    merged_buildings = None
+    for index, row in metadata.iterrows():
+        aoi_id, year, month = row['aoi_id'], row['year'], row['month']
+        file_name = f'global_monthly_{year}_{month:02d}_mosaic_{aoi_id}_Buildings.geojson'
+        file = SPACENET7_PATH / aoi_id / 'labels_match' / file_name
+        with open(str(file)) as f:
+            buildings = json.load(f)
+
+        if merged_buildings is None:
+            merged_buildings = buildings
+        else:
+            merged_features = merged_buildings['features']
+            merged_features.extend(buildings['features'])
+            merged_buildings['features'] = merged_features
+
+    buildings_file = SPACENET7_PATH.parent / f'sn7_buildings.geojson'
+    with open(str(buildings_file), 'w', encoding='utf-8') as f:
+        json.dump(merged_buildings, f, ensure_ascii=False, indent=4)
+
+
 if __name__ == '__main__':
 
     ee.Initialize()
 
     metadata_file = SPACENET7_PATH.parent / 'sn7_metadata.csv'
     mdf = pd.read_csv(metadata_file)
+    # construct_buildings_file(metadata_file)
 
     aoi_names = [f.name for f in SPACENET7_PATH.iterdir() if f.is_dir()]
     patch_features = []

@@ -234,15 +234,11 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
         self.root_dir = Path(cfg.DATASETS.TESTING)
 
         # getting patches
-        self.buildings_path = self.root_dir / self.cfg.DATALOADER.LABEL
-        file_names = [f.stem for f in self.buildings_path.glob('**/*')]
-
-        def get_aoi_id(file_name):
-            file_name_parts = file_name.split('_')
-            return '_'.join(file_name_parts[1:])
-
-        self.aoi_ids = [get_aoi_id(file_name) for file_name in file_names]
-        self.length = len(self.aoi_ids)
+        samples_file = self.root_dir / 'samples.json'
+        with open(str(samples_file)) as f:
+            metadata = json.load(f)
+        self.samples = metadata['samples']
+        self.length = len(self.samples)
 
         self.transform = transforms.Compose([Numpy2Torch()])
 
@@ -255,7 +251,9 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
 
         # loading metadata of sample
-        aoi_id = self.aoi_ids[index]
+        sample = self.samples[index]
+        aoi_id = sample['aoi_id']
+        group = sample['group']
 
         # loading images
         if not any(self.cfg.DATALOADER.SENTINEL1_BANDS):  # only sentinel 2 features
@@ -273,7 +271,8 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
         item = {
             'x': img,
             'y': label,
-            'aoi_id': aoi_id
+            'aoi_id': aoi_id,
+            'group': group
         }
 
         return item

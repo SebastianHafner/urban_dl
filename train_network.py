@@ -72,6 +72,7 @@ def train_net(net, cfg):
 
     # unpacking cfg
     epochs = cfg.TRAINER.EPOCHS
+    save_checkpoints = cfg.SAVE_CHECKPOINTS
     early_stopping_enabled = cfg.TRAINER.EARLY_STOPPING
     patience = cfg.TRAINER.PATIENCE
 
@@ -125,11 +126,10 @@ def train_net(net, cfg):
             })
 
         # evaluation on sample of training and validation set after ever epoch
-        train_thresholds = torch.linspace(0, 1, 101)
-        train_maxF1, train_maxThresh = model_eval(net, cfg, device, train_thresholds, 'training', epoch, global_step)
-
-        val_threshold = torch.tensor([train_maxThresh])
-        val_f1, _ = model_eval(net, cfg, device, val_threshold, 'validation', epoch, global_step)
+        thresholds = torch.linspace(0, 1, 101)
+        train_maxF1, train_argmaxF1 = model_eval(net, cfg, device, thresholds, 'training', epoch, global_step)
+        val_f1, val_argmaxF1 = model_eval(net, cfg, device, thresholds, 'validation', epoch, global_step,
+                                          specific_index=train_argmaxF1)
 
         # checking for early stopping
         if early_stopping_enabled:
@@ -142,10 +142,10 @@ def train_net(net, cfg):
         # updating best validation f1 score
         best_val_f1 = val_f1 if val_f1 > best_val_f1 else val_f1
 
-    if cfg.SAVE_MODEL:
-        print(f'saving network', flush=True)
-        net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}.pkl'
-        torch.save(net.state_dict(), net_file)
+        if epoch in save_checkpoints:
+            print(f'saving network', flush=True)
+            net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}_{epoch}.pkl'
+            torch.save(net.state_dict(), net_file)
 
 
 def image_sampling_weight(samples_metadata):
@@ -156,9 +156,10 @@ def image_sampling_weight(samples_metadata):
     return sampling_weights
 
 
+# specific threshold creates an additional log for that threshold
+# can be used to apply best training threshold to validation set
 def model_eval(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: int, step: int,
-               max_samples: int = 1000):
-
+               max_samples: int = 1000, specific_index: int = None):
     y_true_set = []
     y_pred_set = []
 
@@ -178,26 +179,42 @@ def model_eval(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch:
 
     print(f'Computing {run_type} F1 score ', end=' ', flush=True)
 
-    f1 = measurer.compute_f1()
-    fpr, fnr = measurer.compute_basic_metrics()
-    maxF1 = f1.max()
-    argmaxF1 = f1.argmax()
-    best_fpr = fpr[argmaxF1]
-    best_fnr = fnr[argmaxF1]
-    best_thresh = thresholds[argmaxF1]
-    print(f'{maxF1.item():.3f}', flush=True)
+    f1s = measurer.compute_f1()
+    precisions, recalls = measurer.precision, measurer.recall
+
+    # best f1 score for passed thresholds
+    f1 = f1s.max()
+    argmax_f1 = f1s.argmax()
+
+    best_thresh = thresholds[argmax_f1]
+    precision = precisions[argmax_f1]
+    recall = recalls[argmax_f1]
+
+    print(f'{f1.item():.3f}', flush=True)
+
+    if specific_index is not None:
+        specific_f1 = f1s[specific_index]
+        specific_thresh = thresholds[specific_index]
+        specific_precision = precisions[specific_index]
+        specific_recall = recalls[specific_index]
+        if not cfg.DEBUG:
+            wandb.log({f'{run_type} specific F1': specific_f1,
+                       f'{run_type} specific threshold': specific_thresh,
+                       f'{run_type} specific precision': specific_precision,
+                       f'{run_type} specific recall': specific_recall,
+                       'step': step, 'epoch': epoch,
+                       })
 
     if not cfg.DEBUG:
-        wandb.log({f'{run_type} max F1': maxF1,
-                   f'{run_type} argmax F1': argmaxF1,
-                   # f'{set_name} Average Precision': ap,
-                   f'{run_type} false positive rate': best_fpr,
-                   f'{run_type} false negative rate': best_fnr,
-                   'step': step,
-                   'epoch': epoch,
+        wandb.log({f'{run_type} F1': f1,
+                   f'{run_type} threshold': best_thresh,
+                   f'{run_type} precision': precision,
+                   f'{run_type} recall': recall,
+                   'step': step, 'epoch': epoch,
                    })
 
-    return maxF1.item(), best_thresh.item()
+
+    return f1.item(), argmax_f1.item()
 
 
 def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=999999999,

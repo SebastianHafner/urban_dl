@@ -1,4 +1,5 @@
 import rasterio
+import json
 from pathlib import Path
 
 
@@ -36,3 +37,9 @@ def write_tif(file: Path, arr, transform, crs):
     ) as dst:
         for i in range(bands):
             dst.write(arr[:, :, i], i + 1)
+
+
+def load_json(file: Path):
+    with open(str(file)) as f:
+        d = json.load(f)
+    return d

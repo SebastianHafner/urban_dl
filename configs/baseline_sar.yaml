@@ -1,5 +1,4 @@
 _BASE_: "base_v2.yaml"
-SAVE_MODEL: True
 DEBUG: False
 THRESH: 0.43
 
@@ -8,6 +7,6 @@ MODEL:
   IN_CHANNELS: 2
 
 DATALOADER:
-  MODE: 'fusion'
+  MODE: 'sar'
   SENTINEL1_BANDS: ['VV', 'VH']
   SENTINEL2_BANDS: []

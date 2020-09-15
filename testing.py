@@ -14,7 +14,7 @@ CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
 
 
-def qualitative_testing(config_name: str):
+def qualitative_testing(config_name: str, checkpoint: int, threshold: int = None):
     cfg_file = CONFIG_PATH / f'{config_name}.yaml'
     cfg = config.load_cfg(cfg_file)
 
@@ -27,6 +27,7 @@ def qualitative_testing(config_name: str):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net.to(device)
     net.eval()
+    thresh = cfg.THRESH if threshold is None else threshold
 
     for index in range(len(dataset)):
         sample = dataset.__getitem__(index)
@@ -52,7 +53,7 @@ def qualitative_testing(config_name: str):
             logits = net(x.unsqueeze(0))
             prob = torch.sigmoid(logits[0, 0,])
             prob = prob.detach().cpu().numpy()
-            pred = prob > cfg.THRESH
+            pred = prob > thresh
 
             plot_activation(axs[1, 2], prob, show_title=True)
             plot_prediction(axs[1, 1], pred, show_title=True)
@@ -60,7 +61,7 @@ def qualitative_testing(config_name: str):
         plt.show()
 
 
-def quantitative_testing(config_name: str, save_output: bool = False):
+def quantitative_testing(config_name: str, checkpoint: int, save_output: bool = False, threshold: float = None):
     cfg_file = CONFIG_PATH / f'{config_name}.yaml'
     cfg = config.load_cfg(cfg_file)
 
@@ -68,17 +69,18 @@ def quantitative_testing(config_name: str, save_output: bool = False):
     dataset = SpaceNet7Dataset(cfg)
 
     # loading network
-    net_file = NETWORK_PATH / f'{config_name}.pkl'
+    net_file = NETWORK_PATH / f'{config_name}_{checkpoint}.pkl'
     net = load_network(cfg, net_file)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net.to(device)
     net.eval()
+    thresh = cfg.THRESH if threshold is None else threshold
 
     y_true_dict = {'total': np.array([])}
     y_pred_dict = {'total': np.array([])}
     # container for output file
     output_data = {
-        'metadata': { 'cfg_name': config_name, 'thresh': cfg.THRESH },
+        'metadata': {'cfg_name': config_name, 'thresh': thresh},
         'groups': [(1, 'NA_AU', '#63cd93'), (2, 'SA', '#f0828f'), (3, 'EU', '#6faec9'), (4, 'SSA', '#5f4ad9'),
                    (5, 'NAF_ME', '#8dee47'), (6, 'AS', '#d9b657'), ('total', 'Total', '#ffffff')],
         'data': {}
@@ -92,7 +94,7 @@ def quantitative_testing(config_name: str, save_output: bool = False):
             x = sample['x'].to(device)
             y_true = sample['y'].to(device)
             logits = net(x.unsqueeze(0))
-            y_pred = torch.sigmoid(logits) > cfg.THRESH
+            y_pred = torch.sigmoid(logits) > thresh
 
             y_true = y_true.detach().cpu().flatten().numpy()
             y_pred = y_pred.detach().cpu().flatten().numpy()
@@ -151,8 +153,53 @@ def plot_quantitative_testing(config_names: list, names: list):
         plt.show()
 
 
-def qualitative_testing_comparison(config_names: list):
-    pass
+def qualitative_testing_comparison(config_names: list, checkpoint: int):
+
+    # setup
+    configs = [config.load_cfg(CONFIG_PATH / f'{config_name}.yaml') for config_name in config_names]
+    datasets = [SpaceNet7Dataset(cfg) for cfg in configs]
+    net_files = [NETWORK_PATH / f'{config_name}.pkl' for config_name in config_names]
+
+    # optical, sar, reference and predictions (n configs)
+    n_plots = 3 + len(config_names)
+
+    for index in range(len(datasets[0])):
+        fig, axs = plt.subplots(1, n_plots, figsize=(n_plots * 5, 5))
+        for i, (cfg, dataset, net_file) in enumerate(zip(configs, datasets, net_files)):
+
+            net = load_network(cfg, net_file)
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            net.to(device)
+            net.eval()
+
+            sample = dataset.__getitem__(index)
+            aoi_id = sample['aoi_id']
+            country = sample['country']
+            group_name = sample['group_name']
+
+            if i == 0:
+                super_title = f'{country} ({group_name})'
+                fig.suptitle(super_title)
+
+                optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
+                plot_optical(axs[0], optical_file, vis='false_color', show_title=False)
+
+                sar_file = DATASET_PATH / 'sn7' / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
+                plot_sar(axs[1], sar_file, show_title=False)
+
+                label = cfg.DATALOADER.LABEL
+                label_file = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
+                plot_buildings(axs[2], label_file, show_title=False)
+
+            with torch.no_grad():
+                x = sample['x'].to(device)
+                logits = net(x.unsqueeze(0))
+                prob = torch.sigmoid(logits[0, 0,])
+                prob = prob.detach().cpu().numpy()
+                pred = prob > cfg.THRESH
+                plot_prediction(axs[3 + i], pred, show_title=False)
+
+        plt.show()
 
 
 if __name__ == '__main__':
@@ -160,5 +207,6 @@ if __name__ == '__main__':
     # qualitative_testing('baseline_fusion')
     # quantitative_testing(config_name, save_output=True)
 
-    plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion'], ['SAR', 'optical', 'fusion'])
+    # plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion'], ['SAR', 'optical', 'fusion'])
+    qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion'], 100)
 

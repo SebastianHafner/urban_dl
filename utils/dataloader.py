@@ -238,6 +238,7 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
         with open(str(samples_file)) as f:
             metadata = json.load(f)
         self.samples = metadata['samples']
+        self.group_names = metadata['group_names']
         self.length = len(self.samples)
 
         self.transform = transforms.Compose([Numpy2Torch()])
@@ -254,6 +255,7 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
         sample = self.samples[index]
         aoi_id = sample['aoi_id']
         group = sample['group']
+        group_name = self.group_names[str(group)]
 
         # loading images
         if not any(self.cfg.DATALOADER.SENTINEL1_BANDS):  # only sentinel 2 features
@@ -272,7 +274,9 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
             'x': img,
             'y': label,
             'aoi_id': aoi_id,
-            'group': group
+            'country': sample['country'],
+            'group': group,
+            'group_name': group_name
         }
 
         return item

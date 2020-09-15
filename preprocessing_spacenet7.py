@@ -5,7 +5,7 @@ import ee
 import utm
 import pandas as pd
 
-SPACENET7_PATH = Path('C:/Users/shafner/urban_extraction/data/spacenet7/train')
+SPACENET7_PATH = Path('C:/Users/hafne/urban_extraction/data/spacenet7/train')
 
 
 def extract_bbox(aoi_id: str):
@@ -97,6 +97,7 @@ def construct_samples_file(metadata_file: Path):
         'label': 'buildings',
         'sentinel1_features': ['VV', 'VH'],
         'sentinel2_features': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'],
+        'group_names': {'1': 'NA_AU', '2': 'SA', '3': 'EU', '4': 'SSA', '5': 'NAF_ME', '6': 'AS'},
         'samples': samples
     }
     dataset_file = SPACENET7_PATH.parent / f'samples.json'

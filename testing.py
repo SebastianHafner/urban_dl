@@ -3,6 +3,9 @@ from pathlib import Path
 import numpy as np
 import json
 import torch
+from tqdm import tqdm
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 from networks.network_loader import load_network
 from utils.dataloader import SpaceNet7Dataset
 from experiment_manager.config import config
@@ -13,6 +16,9 @@ DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
 
+GROUPS = [(1, 'NA_AU', '#63cd93'), (2, 'SA', '#f0828f'), (3, 'EU', '#6faec9'), (4, 'SSA', '#5f4ad9'),
+          (5, 'NAF_ME', '#8dee47'), (6, 'AS', '#d9b657'), ('total', 'Total', '#ffffff')]
+
 
 def qualitative_testing(config_name: str, checkpoint: int, threshold: int = None):
     cfg_file = CONFIG_PATH / f'{config_name}.yaml'
@@ -22,14 +28,14 @@ def qualitative_testing(config_name: str, checkpoint: int, threshold: int = None
     dataset = SpaceNet7Dataset(cfg)
 
     # loading network
-    net_file = NETWORK_PATH / f'{config_name}.pkl'
+    net_file = NETWORK_PATH / f'{config_name}_{checkpoint}.pkl'
     net = load_network(cfg, net_file)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net.to(device)
     net.eval()
     thresh = cfg.THRESH if threshold is None else threshold
 
-    for index in range(len(dataset)):
+    for index in tqdm(range(len(dataset))):
         sample = dataset.__getitem__(index)
         aoi_id = sample['aoi_id']
 
@@ -81,12 +87,11 @@ def quantitative_testing(config_name: str, checkpoint: int, save_output: bool = 
     # container for output file
     output_data = {
         'metadata': {'cfg_name': config_name, 'thresh': thresh},
-        'groups': [(1, 'NA_AU', '#63cd93'), (2, 'SA', '#f0828f'), (3, 'EU', '#6faec9'), (4, 'SSA', '#5f4ad9'),
-                   (5, 'NAF_ME', '#8dee47'), (6, 'AS', '#d9b657'), ('total', 'Total', '#ffffff')],
+        'groups': GROUPS,
         'data': {}
     }
 
-    for index in range(len(dataset)):
+    for index in tqdm(range(len(dataset))):
         sample = dataset.__getitem__(index)
         group = sample['group']
 
@@ -109,16 +114,16 @@ def quantitative_testing(config_name: str, checkpoint: int, save_output: bool = 
             y_true_dict['total'] = np.concatenate((y_true_dict['total'], y_true))
             y_pred_dict['total'] = np.concatenate((y_pred_dict['total'], y_pred))
 
-    # TODO: improve order
-    for group in y_true_dict.keys():
-        group_y_true = torch.Tensor(np.array(y_true_dict[group]))
-        group_y_pred = torch.Tensor(np.array(y_pred_dict[group]))
+    for group in GROUPS:
+        group_index, group_name, _ = group
+        group_y_true = torch.Tensor(np.array(y_true_dict[group_index]))
+        group_y_pred = torch.Tensor(np.array(y_pred_dict[group_index]))
         prec = precision(group_y_true, group_y_pred, dim=0).item()
         rec = recall(group_y_true, group_y_pred, dim=0).item()
         f1 = f1_score(group_y_true, group_y_pred, dim=0).item()
 
-        output_data['data'][group] = {'f1_score': f1, 'precision': prec, 'recall': rec}
-        print(f'Group {group} - Precision: {prec:.3f} - Recall: {rec:.3f} - F1 score: {f1:.3f}')
+        output_data['data'][group_index] = {'f1_score': f1, 'precision': prec, 'recall': rec}
+        print(f'{group_name} ({group_index}) - Precision: {prec:.3f} - Recall: {rec:.3f} - F1 score: {f1:.3f}')
 
     if save_output:
         output_file = DATASET_PATH.parent / 'testing' / f'testing_{config_name}.json'
@@ -158,7 +163,7 @@ def qualitative_testing_comparison(config_names: list, checkpoint: int):
     # setup
     configs = [config.load_cfg(CONFIG_PATH / f'{config_name}.yaml') for config_name in config_names]
     datasets = [SpaceNet7Dataset(cfg) for cfg in configs]
-    net_files = [NETWORK_PATH / f'{config_name}.pkl' for config_name in config_names]
+    net_files = [NETWORK_PATH / f'{config_name}_{checkpoint}.pkl' for config_name in config_names]
 
     # optical, sar, reference and predictions (n configs)
     n_plots = 3 + len(config_names)
@@ -178,8 +183,10 @@ def qualitative_testing_comparison(config_names: list, checkpoint: int):
             group_name = sample['group_name']
 
             if i == 0:
-                super_title = f'{country} ({group_name})'
-                fig.suptitle(super_title)
+                super_title = f'{aoi_id} ({country},  {group_name})'
+                fig.suptitle(super_title, size=20)
+                fig.subplots_adjust(wspace=0, hspace=0)
+                mpl.rcParams['axes.linewidth'] = 4
 
                 optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
                 plot_optical(axs[0], optical_file, vis='false_color', show_title=False)
@@ -204,9 +211,9 @@ def qualitative_testing_comparison(config_names: list, checkpoint: int):
 
 if __name__ == '__main__':
     config_name = 'baseline_fusion'
-    # qualitative_testing('baseline_fusion')
-    # quantitative_testing(config_name, save_output=True)
-
+    checkpoint = 100
+    # qualitative_testing('baseline_fusion', checkpoint)
+    # quantitative_testing(config_name, checkpoint, save_output=True)
     # plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion'], ['SAR', 'optical', 'fusion'])
-    qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion'], 100)
+    qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion'], checkpoint)
 

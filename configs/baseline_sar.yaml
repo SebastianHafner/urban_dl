@@ -1,6 +1,6 @@
 _BASE_: "base_v2.yaml"
 DEBUG: False
-THRESH: 0.43
+THRESH: 0.41
 
 MODEL:
   TYPE: 'unet'

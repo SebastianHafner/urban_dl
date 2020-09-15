@@ -41,7 +41,7 @@ class MultiThresholdMetric():
         # self._y_pred = self._y_pred[None, ...]  # [B, Thresh, C, ...]
         # self._y_true = self._y_true[None,:, None, ...] # [Thresh, B,  C, ...]
 
-    def add_sample(self, y_true:torch.Tensor, y_pred):
+    def add_sample(self, y_true: torch.Tensor, y_pred: torch.Tensor):
         y_true = y_true.bool()[None,...] # [Thresh, B,  C, ...]
         y_pred = y_pred[None, ...]  # [Thresh, B, C, ...]
         y_pred_offset = (y_pred - self._thresholds + 0.5).round().bool()
@@ -86,91 +86,34 @@ class MultiThresholdMetric():
         denom = (self.precision + self.recall).clamp(10e-05)
         return 2 * self.precision * self.recall / denom
 
-class MultiClassF1():
-    def __init__(self, ignore_last_class = False):
 
-        # FIXME Does not operate properly
-
-        '''
-        Takes in rasterized and batched images
-        :param y_true: [B, H, W]
-        :param y_pred: [B, C, H, W]
-        :param threshold: [Thresh]
-        '''
-
-        self._data_dims = (0, 2, 3) # For a B/W image, it should be [Thresh, B, C, H, W],
-        self.ignore_last_class = ignore_last_class
-        self.TP = 0
-        self.TN = 0
-        self.FP = 0
-        self.FN = 0
-
-    def add_sample(self, y_true:torch.Tensor, y_pred):
-        if self.ignore_last_class:
-            # Ignore background classes
-
-            y_pred = y_pred[:, :-1]
-            y_true = y_true[:, :-1]
-            y_true_mask = y_true[:, [-1]]
-
-
-        y_true = y_true.bool() # [B,  C, ...]
-        # Make y_pred one hot along dim C
-        y_pred_argmax = torch.argmax(y_pred, dim=1, keepdim=True)  # [B, C, ...]
-        y_pred = torch.zeros_like(y_pred, dtype=torch.bool).scatter_(1, y_pred_argmax,True)
-
-        self.TP += (y_true & y_pred).sum(dim=self._data_dims).float()
-        self.TN += ((~y_true & ~y_pred) * y_true_mask).sum(dim=self._data_dims).float()
-        self.FP += ((~y_true & y_pred) * y_true_mask).sum(dim=self._data_dims).float()
-        self.FN += (y_true & ~y_pred).sum(dim=self._data_dims).float()
-
-
-    def compute_basic_metrics(self):
-        '''
-        Computes False Negative Rate and False Positive rate
-        :return:
-        '''
-
-        false_pos_rate = self.FP/(self.FP + self.TN)
-        false_neg_rate = self.FN / (self.FN + self.TP)
-
-        return false_pos_rate, false_neg_rate
-
-    def compute_f1(self, include_bg=False):
-        self.TP = self.TP.clamp(10e-05)
-        self.TN = self.TN.clamp(10e-05)
-        self.FP = self.FP.clamp(10e-05)
-        self.FN = self.FN.clamp(10e-05)
-        individual_f1 = 2 * self.TP / (2 * self.TP + self.FN + self.FP)
-        if not include_bg:
-            individual_f1 = individual_f1[..., :-1]
-        f1 = len(individual_f1) / (individual_f1 ** -1).sum()
-
-        f1 = f1.cpu().item()
-        individual_f1 = individual_f1.cpu().numpy()
-        return f1, individual_f1
-
-def true_pos(y_true, y_pred, dim=0):
-    return torch.sum(y_true * torch.round(y_pred), dim=dim) # Only sum along H, W axis, assuming no C
+def true_pos(y_true: torch.Tensor, y_pred: torch.Tensor, dim=0):
+    return torch.sum(y_true * torch.round(y_pred), dim=dim)  # Only sum along H, W axis, assuming no C
 
 
 def false_pos(y_true, y_pred, dim=0):
-    return torch.sum(y_true * (1. - torch.round(y_pred)), dim=dim)
-
-
-def false_neg(y_true, y_pred, dim=0):
     return torch.sum((1. - y_true) * torch.round(y_pred), dim=dim)
 
 
-def precision(y_true, y_pred, dim):
-    denom = (true_pos(y_true, y_pred, dim) + false_pos(y_true, y_pred, dim))
+def false_neg(y_true: torch.Tensor, y_pred: torch.Tensor, dim=0):
+    return torch.sum(y_true * (1. - torch.round(y_pred)), dim=dim)
+
+
+def precision(y_true: torch.Tensor, y_pred: torch.Tensor, dim: int):
+    TP = true_pos(y_true, y_pred, dim)
+    FP = false_pos(y_true, y_pred, dim)
+    denom = TP + FP
+    denom = torch.clamp(denom, 10e-05)
+    return TP / denom
+
+
+def recall(y_true: torch.Tensor, y_pred: torch.Tensor, dim: int):
+    TP = true_pos(y_true, y_pred, dim)
+    FN = false_neg(y_true, y_pred, dim)
+    denom = TP + FN
     denom = torch.clamp(denom, 10e-05)
     return true_pos(y_true, y_pred, dim) / denom
 
-def recall(y_true, y_pred, dim):
-    denom = (true_pos(y_true, y_pred, dim) + false_neg(y_true, y_pred, dim))
-    denom = torch.clamp(denom, 10e-05)
-    return true_pos(y_true, y_pred, dim) / denom
 
 def f1_score(gts:torch.Tensor, preds:torch.Tensor, multi_threashold_mode=False, dim=(-1, -2)):
     # FIXME Does not operate proper
@@ -191,10 +134,14 @@ def f1_score(gts:torch.Tensor, preds:torch.Tensor, multi_threashold_mode=False, 
     return f1
 
 
-def roc_score(y_true:torch.Tensor, y_preds:torch.Tensor, ):
-    y_preds = y_preds.flatten().cpu().numpy()
-    y_true = y_true.flatten().cpu().numpy()
+if __name__ == '__main__':
+    import numpy as np
+    y_true = torch.Tensor(np.array([1, 1, 1, 1]))
+    y_pred = torch.Tensor(np.array([1, 0, 0, 0]))
+    print(f'TP {true_pos(y_true, y_pred)}')
+    print(f'FP {false_pos(y_true, y_pred)}')
+    print(f'FN {false_neg(y_true, y_pred)}')
+    print(f'precision {precision(y_true, y_pred, dim=0)}')
+    print(f'recall {recall(y_true, y_pred, dim=0)}')
+    print(f'f1 score {f1_score(y_true, y_pred, dim=0)}')
 
-    curve = roc_curve(y_true, y_preds, pos_label=1,  drop_intermediate=False)
-    # print(curve)
-    return curve

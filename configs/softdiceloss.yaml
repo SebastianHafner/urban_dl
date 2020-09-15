@@ -1,4 +1,0 @@
-_BASE_: "benchmark.yaml"
-
-MODEL:
-  LOSS_TYPE: 'SoftDiceLoss'

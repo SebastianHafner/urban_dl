@@ -14,13 +14,13 @@ CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
 
 
-def compute_accuracy_metrics(config_name: str, output_file: Path):
+def compute_accuracy_metrics(config_name: str, checkpoint: int, output_file: Path = None):
 
     cfg_file = CONFIG_PATH / f'{config_name}.yaml'
     cfg = config.load_cfg(cfg_file)
 
     # loading network
-    net_file = NETWORK_PATH / f'{config_name}.pkl'
+    net_file = NETWORK_PATH / f'{config_name}_{checkpoint}.pkl'
     net = load_network(cfg, net_file)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net.to(device)
@@ -58,8 +58,9 @@ def compute_accuracy_metrics(config_name: str, output_file: Path):
 
             data[run_type][site] = {'f1_score': f1.item(), 'precision': prec.item(), 'recall': rec.item()}
 
-    with open(str(output_file), 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    if output_file is not None:
+        with open(str(output_file), 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
 
 
 def plot_quantitative_results(files: list, names: list, run_type: str):
@@ -92,11 +93,12 @@ def plot_quantitative_results(files: list, names: list, run_type: str):
 
 if __name__ == '__main__':
     config_name = 'baseline_fusion'
+    checkpoint = 100
     output_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_{config_name}.json'
-    # compute_accuracy_metrics(config_name, output_file)
+    compute_accuracy_metrics(config_name, checkpoint)
 
-
-    fusion_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_fusion.json'
-    optical_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_optical.json'
-    sar_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_sar.json'
-    plot_quantitative_results([sar_file, optical_file, fusion_file], ['SAR', 'optical', 'fusion'], 'validation')
+    # TODO: only pass config name to function
+    # fusion_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_fusion.json'
+    # optical_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_optical.json'
+    # sar_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_sar.json'
+    # plot_quantitative_results([sar_file, optical_file, fusion_file], ['SAR', 'optical', 'fusion'], 'validation')

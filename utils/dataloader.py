@@ -276,7 +276,11 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
             'aoi_id': aoi_id,
             'country': sample['country'],
             'group': group,
-            'group_name': group_name
+            'group_name': group_name,
+            'year': sample['year'],
+            'month': sample['month'],
+            'transform': geotransform,
+            'crs': crs
         }
 
         return item

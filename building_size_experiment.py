@@ -72,6 +72,15 @@ def is_out_of_bounds(img: np.ndarray, transform, coords) -> bool:
     return False
 
 
+def is_valid_footprint(footprint):
+    if footprint['geometry'] is None:
+        return False
+    elif footprint['geometry']['type'] != 'Polygon':
+        return False
+    else:
+        return True
+
+
 def value_at_coords(img: np.ndarray, transform, coords) -> float:
     x_coord, y_coord = coords
     x_min, _, x_pixel_spacing, _, y_max, y_pixel_spacing = unpack_transform(img, transform)
@@ -104,10 +113,13 @@ def run_building_size_experiment(config_name: str, checkpoint: int):
     net.to(device)
     net.eval()
 
+    output_data = []
+
     for index in range(len(dataset)):
         sample = dataset.__getitem__(index)
         aoi_id = sample['aoi_id']
         print(f'processing {aoi_id}')
+
         x = sample['x'].to(device)
         y_true = sample['y'].to(device)
         transform, crs = sample['transform'], sample['crs']
@@ -126,16 +138,28 @@ def run_building_size_experiment(config_name: str, checkpoint: int):
         footprints = load_building_footprints(sample['aoi_id'], sample['year'], sample['month'])
 
         for i, (footprint, area) in enumerate(zip(footprints, areas)):
-            building_centroid = centroid(footprint)
-            easting, northing, zone_number, zone_letter = utm.from_latlon(*building_centroid)
+            if is_valid_footprint(footprint):
+                building_centroid = centroid(footprint)
+                easting, northing, zone_number, zone_letter = utm.from_latlon(*building_centroid)
 
-            # check for out of bounds
-            if not is_out_of_bounds(y_prob, transform, (easting, northing)):
-                prob = value_at_coords(y_prob, transform, (easting, northing))
-                print(prob)
-            else:
-                raise Exception('out of bounds')
+                # check for out of bounds
+                if not is_out_of_bounds(y_prob, transform, (easting, northing)):
+                    prob = value_at_coords(y_prob, transform, (easting, northing))
+                    output_data.append((float(area), float(prob)))
 
+    output_file = DATASET_PATH.parent / 'building_size_experiment' / f'data_{config_name}.json'
+    with open(str(output_file), 'w', encoding='utf-8') as f:
+        json.dump(output_data, f, ensure_ascii=False, indent=4)
+
+
+def plot_building_size_experiment(config_name: str):
+    file = DATASET_PATH.parent / 'building_size_experiment' / f'data_{config_name}.json'
+    data = load_json(file)
+    areas = [d[0] for d in data]
+    prob = [d[1] for d in data]
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.scatter(areas, prob)
+    plt.show()
 
 
 
@@ -146,4 +170,5 @@ def run_building_size_experiment(config_name: str, checkpoint: int):
 if __name__ == '__main__':
     config_name = 'baseline_sar'
     checkpoint = 100
-    run_building_size_experiment(config_name, checkpoint)
+    # run_building_size_experiment(config_name, checkpoint)
+    plot_building_size_experiment(config_name)

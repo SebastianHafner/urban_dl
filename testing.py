@@ -158,12 +158,12 @@ def plot_quantitative_testing(config_names: list, names: list):
         plt.show()
 
 
-def qualitative_testing_comparison(config_names: list, checkpoint: int):
+def qualitative_testing_comparison(config_names: list, checkpoints: list):
 
     # setup
     configs = [config.load_cfg(CONFIG_PATH / f'{config_name}.yaml') for config_name in config_names]
     datasets = [SpaceNet7Dataset(cfg) for cfg in configs]
-    net_files = [NETWORK_PATH / f'{config_name}_{checkpoint}.pkl' for config_name in config_names]
+    net_files = [NETWORK_PATH / f'{name}_{checkpoint}.pkl' for name, checkpoint in zip(config_names, checkpoints)]
 
     # optical, sar, reference and predictions (n configs)
     n_plots = 3 + len(config_names)
@@ -210,10 +210,10 @@ def qualitative_testing_comparison(config_names: list, checkpoint: int):
 
 
 if __name__ == '__main__':
-    config_name = 'baseline_fusion'
-    checkpoint = 100
-    # qualitative_testing('baseline_fusion', checkpoint)
-    # quantitative_testing(config_name, checkpoint, save_output=True)
-    # plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion'], ['SAR', 'optical', 'fusion'])
-    qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion'], checkpoint)
+    # qualitative_testing('sarbasedfusion_debug', 25)
+    # quantitative_testing('sarbasedfusion_debug', 25, save_output=True)
+    # plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sarbasedfusion_debug'],
+    #                            ['SAR', 'optical', 'fusion', 'new fusion'])
+    qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sarbasedfusion_debug'],
+                                   [100, 100, 100, 25])
 

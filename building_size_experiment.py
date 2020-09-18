@@ -12,6 +12,7 @@ from utils.dataloader import SpaceNet7Dataset
 from experiment_manager.config import config
 from utils.metrics import *
 from utils.geotiff import *
+from scipy.stats import gaussian_kde
 
 
 DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction')
@@ -155,16 +156,35 @@ def run_building_size_experiment(config_name: str, checkpoint: int):
 def plot_building_size_experiment(config_name: str):
     file = DATASET_PATH.parent / 'building_size_experiment' / f'data_{config_name}.json'
     data = load_json(file)
-    areas = [d[0] for d in data]
-    prob = [d[1] for d in data]
+    areas = np.array([d[0] for d in data])
+    prob = np.array([d[1] for d in data])
+    print(areas.shape)
+    max_index = -1
+    x = areas[:max_index]
+    y = prob[:max_index]
+
+    # Calculate the point density
+    xy = np.vstack([x, y])
+    z = gaussian_kde(xy)(xy)
+
+    # Sort the points by density, so that the densest points are plotted last
+    idx = z.argsort()
+    x, y, z = x[idx], y[idx], z[idx]
+
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.scatter(areas, prob)
+    ax.scatter(x, y, c=z)
+    # ax.scatter(x, y, c=list(z), s=100, edgecolor='')
+
+    ax.set_xlim((0, 10000))
     plt.show()
 
-
-
-
-
+    bucket_size = 10
+    max_size = 10_000
+    bucket_starts = np.arange(0, max_size, bucket_size)
+    bucket_data = []
+    for start in bucket_starts:
+        # subsetting data
+        subset = [d for d in data if start < d[0] < start + bucket_size]
 
 
 if __name__ == '__main__':

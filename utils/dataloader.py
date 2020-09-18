@@ -74,6 +74,10 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
             img = np.concatenate([s1_img, s2_img], axis=-1)
 
+        if self.cfg.DATALOADER.ANCILLARY_INPUT is not None:
+            ancillary_img, _, _ = self._get_ancillary_data(site, patch_id)
+            img = np.concatenate([ancillary_img, img], axis=-1)
+
         label, geotransform, crs = self._get_label_data(site, patch_id)
         img, label = self.transform((img, label))
 
@@ -113,6 +117,12 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         if threshold >= 0:
             img = img > threshold
 
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_ancillary_data(self, site, patch_id):
+        ancillary_input = self.cfg.DATALOADER.ANCILLARY_INPUT
+        file = self.root_dir / site / ancillary_input / f'prediction_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(file)
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
     @ staticmethod
@@ -267,6 +277,10 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
             s2_img, _, _ = self._get_sentinel2_data(aoi_id)
             img = np.concatenate([s1_img, s2_img], axis=-1)
 
+        if self.cfg.DATALOADER.ANCILLARY_INPUT is not None:
+            ancillary_img, _, _ = self._get_ancillary_data(aoi_id)
+            img = np.concatenate([ancillary_img, img], axis=-1)
+
         label, geotransform, crs = self._get_label_data(aoi_id)
         img, label = self.transform((img, label))
 
@@ -307,6 +321,12 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
         if threshold >= 0:
             img = img > threshold
 
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_ancillary_data(self, aoi_id):
+        ancillary_input = self.cfg.DATALOADER.ANCILLARY_INPUT
+        file = self.root_dir / ancillary_input / f'prediction_sn7_{aoi_id}.tif'
+        img, transform, crs = read_tif(file)
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
     @staticmethod

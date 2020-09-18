@@ -1,0 +1,14 @@
+_BASE_: "base_v2.yaml"
+DEBUG: False
+THRESH: 0.39
+SAVE_CHECKPOINTS: [25, 50, 100]
+
+MODEL:
+  TYPE: 'unet'
+  IN_CHANNELS: 11
+
+DATALOADER:
+  MODE: 'optical'
+  SENTINEL1_BANDS: []
+  SENTINEL2_BANDS: ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12']
+  ANCILLARY_INPUT: 'prediction_baseline_sar'

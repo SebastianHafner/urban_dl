@@ -159,7 +159,7 @@ def plot_building_size_experiment(config_name: str):
     areas = np.array([d[0] for d in data])
     prob = np.array([d[1] for d in data])
     print(areas.shape)
-    max_index = -1
+    max_index = 100
     x = areas[:max_index]
     y = prob[:max_index]
 
@@ -178,17 +178,103 @@ def plot_building_size_experiment(config_name: str):
     ax.set_xlim((0, 10000))
     plt.show()
 
-    bucket_size = 10
-    max_size = 10_000
+
+def bucketize(config_name: str, bucket_size: int, max_size: int = 10_000):
+    # extracting threshold for detection rate
+    cfg_file = CONFIG_PATH / f'{config_name}.yaml'
+    cfg = config.load_cfg(cfg_file)
+    threshold = cfg.THRESH
+
+    def was_detected(prob):
+        return True if prob > threshold else False
+
+    file = DATASET_PATH.parent / 'building_size_experiment' / f'data_{config_name}.json'
+    data = load_json(file)
+    data_bucketized = []
+
+    # TODO: include everything larger than max in last bucket
     bucket_starts = np.arange(0, max_size, bucket_size)
-    bucket_data = []
     for start in bucket_starts:
-        # subsetting data
-        subset = [d for d in data if start < d[0] < start + bucket_size]
+        data_bucket = [d for d in data if start < d[0] < start + bucket_size]
+        n = len(data_bucket)
+        detected = [was_detected(d[1]) for d in data_bucket]
+
+        bucket_stats = {
+            'area': [d[0] for d in data_bucket],
+            'prob': [d[1] for d in data_bucket],
+            'detected': detected,
+            'detection_rate': sum(detected) / n,
+            'n': n
+        }
+
+        data_bucketized.append(bucket_stats)
+
+    return data_bucketized
+
+
+def boxplots(config_name):
+
+    # Random test data
+    np.random.seed(19680801)
+    all_data = [np.random.normal(0, std, size=100) for std in range(1, 4)]
+    labels = ['x1', 'x2', 'x3']
+
+    fig, ax = plt.subplots(figsize=(4, 4))
+
+    # notch shape box plot
+    bplot = ax.boxplot(all_data,
+                         notch=True,  # notch shape
+                         vert=True,  # vertical box alignment
+                         patch_artist=True,  # fill with color
+                         labels=labels)  # will be used to label x-ticks
+    ax.set_title('Notched box plot')
+
+    # fill with colors
+    colors = ['pink', 'lightblue', 'lightgreen']
+    for patch, color in zip(bplot['boxes'], colors):
+        patch.set_facecolor(color)
+
+    # adding horizontal grid lines
+    ax.yaxis.grid(True)
+    ax.set_xlabel('Three separate samples')
+    ax.set_ylabel('Observed values')
+
+    plt.show()
+
+
+def line_plot(config_name: str):
+
+    data_bucketized = bucketize(config_name, bucket_size=10, max_size=1_000)
+    n_buckets = len(data_bucketized)
+
+    detection_rate = [bucket['detection_rate'] for bucket in data_bucketized]
+    n_buildings = [bucket['n'] for bucket in data_bucketized]
+    x = np.arange(n_buckets)
+
+    fig, ax1 = plt.subplots(figsize=(10, 4))
+
+    color = 'tab:red'
+    ax1.set_xlabel('Building Size')
+    ax1.set_ylabel('Detection Rate', color=color)
+    ax1.plot(x, detection_rate, color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax1.set_ylim((0, 1))
+
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+    color = 'tab:blue'
+    ax2.set_ylabel('n Buildings', color=color)  # we already handled the x-label with ax1
+    ax2.plot(x, n_buildings, color=color)
+    ax2.tick_params(axis='y', labelcolor=color)
+
+    fig.tight_layout()  # otherwise the right y-label is slightly clipped
+
+    plt.show()
 
 
 if __name__ == '__main__':
     config_name = 'baseline_sar'
     checkpoint = 100
     # run_building_size_experiment(config_name, checkpoint)
-    plot_building_size_experiment(config_name)
+    # plot_building_size_experiment(config_name)
+    line_plot(config_name)

@@ -132,6 +132,7 @@ def quantitative_testing(config_name: str, checkpoint: int, save_output: bool = 
 
 
 def plot_quantitative_testing(config_names: list, names: list):
+
     path = DATASET_PATH.parent / 'testing'
     data = [load_json(path / f'testing_{config_name}.json') for config_name in config_names]
 
@@ -151,7 +152,7 @@ def plot_quantitative_testing(config_names: list, names: list):
         ax.set_ylim((0, 1))
         ax.set_ylabel(metric)
         ax.legend(loc='best')
-        x_ticks = ind + width
+        x_ticks = ind + (len(config_names) - 1) * width / 2
         ax.set_xticks(x_ticks)
         ax.set_xticklabels(group_names)
         plt.grid(b=True, which='major', axis='y', zorder=0)
@@ -211,9 +212,9 @@ def qualitative_testing_comparison(config_names: list, checkpoints: list):
 
 if __name__ == '__main__':
     # qualitative_testing('sarbasedfusion_debug', 25)
-    # quantitative_testing('sarbasedfusion_debug', 25, save_output=True)
-    # plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sarbasedfusion_debug'],
-    #                            ['SAR', 'optical', 'fusion', 'new fusion'])
-    qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sarbasedfusion_debug'],
-                                   [100, 100, 100, 25])
+    # quantitative_testing('sar_prediction_fusion', 100, save_output=True)
+    plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
+                              ['SAR', 'optical', 'fusion', 'new fusion'])
+    qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
+                                   [100, 100, 100, 100])
 

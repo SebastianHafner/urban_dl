@@ -211,10 +211,15 @@ def qualitative_testing_comparison(config_names: list, checkpoints: list):
 
 
 if __name__ == '__main__':
-    # qualitative_testing('sarbasedfusion_debug', 25)
+    # qualitative_testing('baseline_sar', 100)
     # quantitative_testing('sar_prediction_fusion', 100, save_output=True)
-    plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
-                              ['SAR', 'optical', 'fusion', 'new fusion'])
-    qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
-                                   [100, 100, 100, 100])
+    quantitative_testing('optical_baseline_na', 100, save_output=True)
+    quantitative_testing('sar_baseline_na', 100, save_output=True)
+    plot_quantitative_testing(['baseline_sar', 'sar_baseline_na', 'baseline_optical', 'optical_baseline_na'],
+                              ['SAR', 'SAR na', 'optical', 'optical na'])
 
+    # plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
+    #                           ['SAR', 'optical', 'fusion', 'new fusion'])
+    # qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
+    #                                [100, 100, 100, 100])
+    pass

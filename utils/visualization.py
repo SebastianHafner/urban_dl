@@ -47,7 +47,8 @@ def plot_buildings(ax, file: Path, show_title: bool = False):
 
 def plot_activation(ax, activation: np.ndarray, show_title: bool = False):
     ax.imshow(activation, cmap='jet', vmin=0, vmax=1)
-    # ax.set_axis_off()
+    ax.set_xticks([])
+    ax.set_yticks([])
     if show_title:
         ax.set_title('activation')
 

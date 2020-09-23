@@ -73,8 +73,6 @@ def train_net(net, cfg):
     # unpacking cfg
     epochs = cfg.TRAINER.EPOCHS
     save_checkpoints = cfg.SAVE_CHECKPOINTS
-    early_stopping_enabled = cfg.TRAINER.EARLY_STOPPING
-    patience = cfg.TRAINER.PATIENCE
 
     # tracking variables
     global_step = 0
@@ -130,14 +128,6 @@ def train_net(net, cfg):
         train_maxF1, train_argmaxF1 = model_eval(net, cfg, device, thresholds, 'training', epoch, global_step)
         val_f1, val_argmaxF1 = model_eval(net, cfg, device, thresholds, 'validation', epoch, global_step,
                                           specific_index=train_argmaxF1)
-
-        # checking for early stopping
-        if early_stopping_enabled:
-            epochs_no_improve = 0 if val_f1 > best_val_f1 else epochs_no_improve + 1
-            if epochs_no_improve == 5 and cfg.SAVE_MODEL:
-                print(f'saving network', flush=True)
-                net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}_es{epoch}.pkl'
-                torch.save(net.state_dict(), net_file)
 
         # updating best validation f1 score
         best_val_f1 = val_f1 if val_f1 > best_val_f1 else val_f1

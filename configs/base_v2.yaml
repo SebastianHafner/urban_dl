@@ -2,7 +2,7 @@ SEED: 42 # best seed so far 42
 DEBUG: False
 THRESH: 0.0 # Best threshold (only to be filled after running final model evaluation)
 OUTPUT_BASE_DIR: '/storage/shafner/urban_extraction/networks'
-SAVE_CHECKPOINTS: [100, 150, 200]
+SAVE_CHECKPOINTS: [50, 100]
 
 MODEL:
   TYPE: 'unet'
@@ -25,7 +25,7 @@ DATALOADER:
   MODE: 'fusion'
   SENTINEL1_BANDS: ['VV', 'VH']
   SENTINEL2_BANDS: ['B2', 'B3', 'B4', 'B5', 'B6', 'B6', 'B8', 'B8A', 'B11', 'B12']
-  ANCILLARY_INPUT: None
+  AUXILIARY_INPUTS: []
 
 DATASETS:
   PATH: '/storage/shafner/urban_extraction/urban_extraction/'
@@ -40,14 +40,8 @@ TRAINER:
   LR: 1e-5
   BATCH_SIZE: 16
   EPOCHS: 101
-  EARLY_STOPPING: False
-  PATIENCE: 5
-
-
 
 AUGMENTATION:
   IMAGE_OVERSAMPLING_TYPE: 'none' # [none, simple]
   RANDOM_FLIP: True
   RANDOM_ROTATE: True
-  SENSOR_DROPOUT: False
-  DROPOUT_PROBABILITY: 0.5

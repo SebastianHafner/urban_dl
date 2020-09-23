@@ -1,12 +1,12 @@
 _BASE_: "base_v2.yaml"
-DEBUG: False
-THRESH: 0.42
+DEBUG: True
+THRESH: 0.0
 
 MODEL:
   TYPE: 'unet'
-  IN_CHANNELS: 11
+  IN_CHANNELS: 12
 
 DATALOADER:
   MODE: 'optical'
   SENTINEL2_BANDS: ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12']
-  AUXILIARY_INPUTS: ['prediction_baseline_sar']
+  AUXILIARY_INPUTS: ['prediction_baseline_sar', 'dsm']

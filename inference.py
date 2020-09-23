@@ -26,7 +26,8 @@ def run_inference(config_name: str, checkpoint: int):
     sites = cfg.DATASETS.SITES.TRAINING + cfg.DATASETS.SITES.VALIDATION
     for site in tqdm(sites):
         # create save folder
-        prediction_folder = DATASET_PATH / site / f'prediction_{config_name}'
+        prediction_name = f'prediction_{config_name}'
+        prediction_folder = DATASET_PATH / site / prediction_name
         prediction_folder.mkdir(exist_ok=True)
 
         dataset = UrbanExtractionDataset(cfg, site, no_augmentations=True, include_projection=True)
@@ -36,7 +37,7 @@ def run_inference(config_name: str, checkpoint: int):
             patch_id = sample['patch_id']
             transform = sample['transform']
             crs = sample['crs']
-            file_name = f'prediction_{site}_{patch_id}.tif'
+            file_name = f'{prediction_name}_{site}_{patch_id}.tif'
             file = prediction_folder / file_name
 
             with torch.no_grad():
@@ -61,7 +62,8 @@ def run_inference_sn7(config_name: str, checkpoint: int):
 
     dataset = SpaceNet7Dataset(cfg)
     # create save folder
-    prediction_folder = DATASET_PATH / 'sn7' / f'prediction_{config_name}'
+    prediction_name = f'prediction_{config_name}'
+    prediction_folder = DATASET_PATH / 'sn7' / prediction_name
     prediction_folder.mkdir(exist_ok=True)
 
     for index in range(len(dataset)):
@@ -69,7 +71,7 @@ def run_inference_sn7(config_name: str, checkpoint: int):
         aoi_id = sample['aoi_id']
         transform = sample['transform']
         crs = sample['crs']
-        file_name = f'prediction_sn7_{aoi_id}.tif'
+        file_name = f'{prediction_name}_sn7_{aoi_id}.tif'
         file = prediction_folder / file_name
 
         with torch.no_grad():
@@ -83,5 +85,5 @@ def run_inference_sn7(config_name: str, checkpoint: int):
 if __name__ == '__main__':
     config_name = 'baseline_sar'
     checkpoint = 100
-    # run_inference(config_name, checkpoint)
-    run_inference_sn7(config_name, checkpoint)
+    run_inference(config_name, checkpoint)
+    # run_inference_sn7(config_name, checkpoint)

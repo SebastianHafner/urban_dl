@@ -34,30 +34,29 @@ def crop_patch(file: Path, patch_size: int):
         pass
 
 
-def preprocess(path: Path, site: str, patch_size: int = 256):
+def preprocess(path: Path, site: str, patch_size: int = 256, dsm: bool = False):
 
     print(f'preprocessing {site}')
 
-    sentinel1_dir = path / 'sentinel1'
-    sentinel2_dir = path / 'sentinel2'
-    buildings_dir = path / 'buildings'
-    buildings_files = [file for file in buildings_dir.glob('**/*')]
+    buildings_path = path / 'buildings'
+    n = len([f for f in buildings_path.glob('**/*')])
 
     samples = []
-    for i, buildings_file in enumerate(tqdm(buildings_files)):
+    for i in tqdm(range(n)):
+        patch_id = f'patch{i + 1}'
 
-        _, _, patch_id = buildings_file.stem.split('_')
-        crop_patch(buildings_file, patch_size)
+        buildings_file = path / 'buildings' / f'buildings_{site}_{patch_id}.tif'
+        sentinel1_file = path / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
+        sentinel2_file = path / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
+        files = [buildings_file, sentinel1_file, sentinel2_file]
+        if dsm:
+            dsm_file = path / 'dsm' / f'dsm_{site}_{patch_id}.tif'
+            files.append(dsm_file)
 
-        sentinel1_file = sentinel1_dir / f'sentinel1_{site}_{patch_id}.tif'
-        crop_patch(sentinel1_file, patch_size)
-        if has_only_zeros(sentinel1_file):
-            raise Exception(f'only zeros {sentinel1_file.name}')
-
-        sentinel2_file = sentinel2_dir / f'sentinel2_{site}_{patch_id}.tif'
-        crop_patch(sentinel2_file, patch_size)
-        if has_only_zeros(sentinel2_file):
-            raise Exception(f'only zeros {sentinel2_file.name}')
+        for file in files:
+            crop_patch(file, patch_size)
+            if has_only_zeros(file):
+                raise Exception(f'only zeros {file.name}')
 
         sample = {
             'site': site,
@@ -100,7 +99,7 @@ if __name__ == '__main__':
     all_sites = training + validation
     for site in all_sites:
         path = dataset_path / site
-        preprocess(path, site, 256)
+        preprocess(path, site, 256, dsm=True)
 
     # sites_split(northamerican_sites, 0.8)
 

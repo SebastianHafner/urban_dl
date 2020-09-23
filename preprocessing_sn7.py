@@ -84,7 +84,7 @@ def construct_samples_file(metadata_file: Path):
     samples = []
     for index, row in metadata.iterrows():
         sample = {
-            'aoi_id': str(row['aoi_id']),
+            'patch_id': str(row['aoi_id']),
             'group': int(row['group']),
             'country': str(row['country']),
             'month': int(row['month']),
@@ -113,33 +113,3 @@ if __name__ == '__main__':
     mdf = pd.read_csv(metadata_file)
     # construct_buildings_file(metadata_file)
     construct_samples_file(metadata_file)
-
-    # aoi_names = [f.name for f in SPACENET7_PATH.iterdir() if f.is_dir()]
-    # patch_features = []
-    # point_features = []
-    # for i, aoi_id in enumerate(aoi_names):
-    #     row = mdf.loc[mdf['aoi_id'] == aoi_id]
-    #     year = int(row['year'])
-    #     month = int(row['month'])
-    #     group = int(row['group'])
-    #     bbox = extract_bbox(aoi_id)
-    #     epsg = epsg_utm(bbox)
-    #     properties = {
-    #         'aoi': aoi_id,
-    #         'epsg': epsg,
-    #         'year': year,
-    #         'month': month,
-    #         'group': group
-    #     }
-    #     patch_features.append(ee.Feature(bbox, properties))
-    #     point_features.append(ee.Feature(bbox.centroid(), properties))
-    #
-    # patch_data = ee.FeatureCollection(patch_features).getInfo()
-    # patch_file = SPACENET7_PATH.parent / f'sn7_patches.geojson'
-    # with open(str(patch_file), 'w', encoding='utf-8') as f:
-    #     json.dump(patch_data, f, ensure_ascii=False, indent=4)
-    #
-    # points_data = ee.FeatureCollection(point_features).getInfo()
-    # points_file = SPACENET7_PATH.parent / f'sn7_points.geojson'
-    # with open(str(points_file), 'w', encoding='utf-8') as f:
-    #     json.dump(points_data, f, ensure_ascii=False, indent=4)

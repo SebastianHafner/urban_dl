@@ -211,12 +211,22 @@ def qualitative_testing_comparison(config_names: list, checkpoints: list):
 
 
 if __name__ == '__main__':
-    # qualitative_testing('baseline_sar', 100)
-    # quantitative_testing('sar_prediction_fusion', 100, save_output=True)
-    quantitative_testing('optical_baseline_na', 100, save_output=True)
-    quantitative_testing('sar_baseline_na', 100, save_output=True)
-    plot_quantitative_testing(['baseline_sar', 'sar_baseline_na', 'baseline_optical', 'optical_baseline_na'],
-                              ['SAR', 'SAR na', 'optical', 'optical na'])
+    # qualitative_testing('sar_dsm', 100)
+    quantitative_testing('sar_prediction_dsm_fusion', 100, save_output=True)
+    # quantitative_testing('optical_baseline_na', 100, save_output=True)
+    # quantitative_testing('sar_baseline_na', 100, save_output=True)
+
+    # not including africa experiment
+    # plot_quantitative_testing(['baseline_sar', 'sar_baseline_na', 'baseline_optical', 'optical_baseline_na'],
+    #                           ['SAR', 'SAR na', 'optical', 'optical na'])
+
+    # adding dsm to sar data experiment
+    # plot_quantitative_testing(['baseline_sar', 'sar_dsm'], ['SAR', 'SAR with DSM'])
+
+    # different fusions
+    plot_quantitative_testing(['baseline_fusion', 'sar_prediction_fusion', 'sar_prediction_dsm_fusion'],
+                              ['sar + optical', 'sar pred + optical', 'sar pred + dsm + optical'])
+
 
     # plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
     #                           ['SAR', 'optical', 'fusion', 'new fusion'])

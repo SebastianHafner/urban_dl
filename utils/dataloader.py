@@ -218,7 +218,7 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
     def _get_auxiliary_data(self, aux_input, aoi_id):
-        file = self.root_dir / 'sn7' / aux_input / f'{aux_input}_sn7_{aoi_id}.tif'
+        file = self.root_dir / aux_input / f'{aux_input}_{aoi_id}.tif'
         img, transform, crs = read_tif(file)
         return np.nan_to_num(img).astype(np.float32), transform, crs
 

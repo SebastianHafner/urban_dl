@@ -66,12 +66,12 @@ def run_inference_sn7(config_name: str, checkpoint: int):
     prediction_folder = DATASET_PATH / 'sn7' / prediction_name
     prediction_folder.mkdir(exist_ok=True)
 
-    for index in range(len(dataset)):
+    for index in tqdm(range(len(dataset))):
         sample = dataset.__getitem__(index)
         aoi_id = sample['aoi_id']
         transform = sample['transform']
         crs = sample['crs']
-        file_name = f'{prediction_name}_sn7_{aoi_id}.tif'
+        file_name = f'{prediction_name}_{aoi_id}.tif'
         file = prediction_folder / file_name
 
         with torch.no_grad():
@@ -85,5 +85,5 @@ def run_inference_sn7(config_name: str, checkpoint: int):
 if __name__ == '__main__':
     config_name = 'baseline_sar'
     checkpoint = 100
-    run_inference(config_name, checkpoint)
-    # run_inference_sn7(config_name, checkpoint)
+    # run_inference(config_name, checkpoint)
+    run_inference_sn7(config_name, checkpoint)

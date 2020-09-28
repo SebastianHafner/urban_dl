@@ -1,0 +1,13 @@
+_BASE_: "base_v3.yaml"
+DEBUG: False
+TRESHOLDS:
+  TRAIN: 0.46
+  VALIDATION: 0.44
+
+MODEL:
+  TYPE: 'unet'
+  IN_CHANNELS: 4
+
+DATALOADER:
+  MODE: 'sar'
+  SENTINEL1_BANDS: ['VV_mean', 'VV_stdDev', 'VH_mean', 'VH_stdDev']

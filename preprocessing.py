@@ -90,7 +90,7 @@ def sites_split(sites: list, train_fraction: float):
 if __name__ == '__main__':
 
     # dataset_path = Path('C:/Users/shafner/urban_extraction/data/dummy_data')
-    dataset_path = Path('/storage/shafner/urban_extraction/urban_extraction/')
+    dataset_path = Path('/storage/shafner/urban_extraction/urban_extraction_dataset/')
 
     training = ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
                 'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',

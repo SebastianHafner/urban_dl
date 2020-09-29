@@ -5,7 +5,7 @@ import ee
 import utm
 import pandas as pd
 
-SPACENET7_PATH = Path('C:/Users/hafne/urban_extraction/data/spacenet7/train')
+SPACENET7_PATH = Path('C:/Users/shafner/urban_extraction/data/spacenet7/train')
 
 
 def extract_bbox(aoi_id: str):
@@ -84,7 +84,7 @@ def construct_samples_file(metadata_file: Path):
     samples = []
     for index, row in metadata.iterrows():
         sample = {
-            'patch_id': str(row['aoi_id']),
+            'aoi_id': str(row['aoi_id']),
             'group': int(row['group']),
             'country': str(row['country']),
             'month': int(row['month']),
@@ -95,7 +95,7 @@ def construct_samples_file(metadata_file: Path):
     # writing data to json file
     data = {
         'label': 'buildings',
-        'sentinel1_features': ['VV', 'VH'],
+        'sentinel1_features': ['VV_mean', 'VV_stdDev', 'VH_mean', 'VH_stdDev'],
         'sentinel2_features': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'],
         'group_names': {'1': 'NA_AU', '2': 'SA', '3': 'EU', '4': 'SSA', '5': 'NAF_ME', '6': 'AS'},
         'samples': samples
@@ -109,7 +109,7 @@ if __name__ == '__main__':
 
     ee.Initialize()
 
-    metadata_file = SPACENET7_PATH.parent / 'sn7_metadata.csv'
+    metadata_file = SPACENET7_PATH.parent / 'sn7_metadata_v3.csv'
     mdf = pd.read_csv(metadata_file)
-    # construct_buildings_file(metadata_file)
+    construct_buildings_file(metadata_file)
     construct_samples_file(metadata_file)

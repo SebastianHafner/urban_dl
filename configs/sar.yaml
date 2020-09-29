@@ -1,6 +1,6 @@
 _BASE_: "base_v3.yaml"
 DEBUG: False
-TRESHOLDS:
+THRESHOLDS:
   TRAIN: 0.46
   VALIDATION: 0.44
 

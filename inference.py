@@ -7,7 +7,7 @@ from utils.dataloader import UrbanExtractionDataset, SpaceNet7Dataset
 from experiment_manager.config import config
 from tqdm import tqdm
 
-DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction')
+DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction_dataset')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
 
@@ -83,7 +83,7 @@ def run_inference_sn7(config_name: str, checkpoint: int):
         write_tif(file, prob, transform, crs)
 
 if __name__ == '__main__':
-    config_name = 'baseline_sar'
+    config_name = 'sar'
     checkpoint = 100
     # run_inference(config_name, checkpoint)
     run_inference_sn7(config_name, checkpoint)

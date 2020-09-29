@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
     metadata = pd.read_csv(METADATA_FILE)
     for index, row in metadata.iterrows():
-        if index >= 20:
+        if index >= 47:
             print(index)
             aoi_id = str(row['aoi_id'])
             group_nr = int(row['group'])

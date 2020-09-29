@@ -10,7 +10,7 @@ import json
 import matplotlib.pyplot as plt
 from utils.visualization import *
 
-DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction')
+DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction_dataset')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
 
@@ -63,13 +63,13 @@ def quantitative_validation(config_name: str, checkpoint: int, save_output: bool
             json.dump(output_data, f, ensure_ascii=False, indent=4)
 
 
-def plot_quantitative_validation(files: list, names: list, run_type: str):
-    def load_data(file: Path):
-        with open(str(file)) as f:
-            d = json.load(f)
+def plot_quantitative_validation(config_names: list, names: list, run_type: str):
+    def load_data(config_name: str):
+        file = DATASET_PATH.parent / 'validation' / f'validation_{config_name}.json'
+        d = load_json(file)
         return d[run_type]
 
-    data = [load_data(file) for file in files]
+    data = [load_data(config_name) for config_name in config_names]
     width = 0.2
 
     metrics = ['f1_score', 'precision', 'recall']
@@ -139,7 +139,10 @@ def random_selection(config_name: str, site: str, n: int):
 if __name__ == '__main__':
     config_name = 'sar'
     checkpoint = 100
-    random_selection(config_name, 'montreal', 20)
+
+    # quantitative_validation(config_name, checkpoint, True)
+    plot_quantitative_validation(['sar'], ['sar'], run_type='validation')
+    # random_selection(config_name, 'montreal', 20)
 
     # fusion_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_fusion.json'
     # optical_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_optical.json'

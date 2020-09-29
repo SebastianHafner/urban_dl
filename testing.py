@@ -12,7 +12,7 @@ from experiment_manager.config import config
 from utils.metrics import *
 from utils.geotiff import *
 
-DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction')
+DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction_dataset')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
 
@@ -80,7 +80,7 @@ def quantitative_testing(config_name: str, checkpoint: int, save_output: bool = 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net.to(device)
     net.eval()
-    thresh = cfg.THRESH if threshold is None else threshold
+    thresh = cfg.THRESHOLDS.VALIDATION
 
     y_true_dict = {'total': np.array([])}
     y_pred_dict = {'total': np.array([])}
@@ -212,7 +212,7 @@ def qualitative_testing_comparison(config_names: list, checkpoints: list):
 
 if __name__ == '__main__':
     # qualitative_testing('sar_dsm', 100)
-    quantitative_testing('sar_prediction_dsm_fusion', 100, save_output=True)
+    # quantitative_testing('twostep_fusion', 100, save_output=True)
     # quantitative_testing('optical_baseline_na', 100, save_output=True)
     # quantitative_testing('sar_baseline_na', 100, save_output=True)
 
@@ -224,12 +224,16 @@ if __name__ == '__main__':
     # plot_quantitative_testing(['baseline_sar', 'sar_dsm'], ['SAR', 'SAR with DSM'])
 
     # different fusions
-    plot_quantitative_testing(['baseline_fusion', 'sar_prediction_fusion', 'sar_prediction_dsm_fusion'],
-                              ['sar + optical', 'sar pred + optical', 'sar pred + dsm + optical'])
+    # plot_quantitative_testing(['baseline_fusion', 'sar_prediction_fusion', 'sar_prediction_dsm_fusion'],
+    #                           ['sar + optical', 'sar pred + optical', 'sar pred + dsm + optical'])
 
 
     # plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
     #                           ['SAR', 'optical', 'fusion', 'new fusion'])
+
+    plot_quantitative_testing(['sar', 'optical', 'twostep_fusion'],
+                              ['SAR', 'optical', 'twostep fusion'])
+
     # qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
     #                                [100, 100, 100, 100])
     pass

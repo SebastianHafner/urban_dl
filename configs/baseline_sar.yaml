@@ -1,6 +1,8 @@
 _BASE_: "base_v2.yaml"
 DEBUG: False
-THRESH: 0.41
+THRESHOLDS:
+  TRAIN: 0.45
+  VALIDATION: 0.41
 
 MODEL:
   TYPE: 'unet'
@@ -9,4 +11,3 @@ MODEL:
 DATALOADER:
   MODE: 'sar'
   SENTINEL1_BANDS: ['VV', 'VH']
-  SENTINEL2_BANDS: []

@@ -33,17 +33,16 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         self.samples = []
         for site in self.sites:
             samples_file = self.root_dir / site / 'samples.json'
-            with open(str(samples_file)) as f:
-                metadata = json.load(f)
+            metadata = load_json(samples_file)
             self.samples += metadata['samples']
+            s1_bands = metadata['sentinel1_features']
+            s2_bands = metadata['sentinel2_features']
         self.length = len(self.samples)
 
         self.include_projection = include_projection
 
         # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
-        s1_bands = ['VV_mean', 'VV_stdDev', 'VH_mean', 'VH_stdDev']
         self.s1_indices = self._get_indices(s1_bands, cfg.DATALOADER.SENTINEL1_BANDS)
-        s2_bands = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12']
         self.s2_indices = self._get_indices(s2_bands, cfg.DATALOADER.SENTINEL2_BANDS)
 
     def __getitem__(self, index):
@@ -137,18 +136,17 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
 
         # getting patches
         samples_file = self.root_dir / 'samples.json'
-        with open(str(samples_file)) as f:
-            metadata = json.load(f)
+        metadata = load_json(samples_file)
         self.samples = metadata['samples']
         self.group_names = metadata['group_names']
         self.length = len(self.samples)
+        s1_bands = metadata['sentinel1_features']
+        s2_bands = metadata['sentinel2_features']
 
         self.transform = transforms.Compose([Numpy2Torch()])
 
         # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
-        s1_bands = ['VV_mean', 'VV_stdDev', 'VH_mean', 'VH_stdDev']
         self.s1_indices = self._get_indices(s1_bands, cfg.DATALOADER.SENTINEL1_BANDS)
-        s2_bands = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12']
         self.s2_indices = self._get_indices(s2_bands, cfg.DATALOADER.SENTINEL2_BANDS)
 
     def __getitem__(self, index):

@@ -12,6 +12,7 @@ from experiment_manager.config import config
 from utils.metrics import *
 from utils.geotiff import *
 
+URBAN_EXTRACTION_PATH = Path('/storage/shafner/urban_extraction')
 DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction_dataset')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
@@ -20,7 +21,7 @@ GROUPS = [(1, 'NA_AU', '#63cd93'), (2, 'SA', '#f0828f'), (3, 'EU', '#6faec9'), (
           (5, 'NAF_ME', '#8dee47'), (6, 'AS', '#d9b657'), ('total', 'Total', '#ffffff')]
 
 
-def qualitative_testing(config_name: str, checkpoint: int, threshold: int = None):
+def qualitative_testing(config_name: str, checkpoint: int, save_plots: bool = False):
     cfg_file = CONFIG_PATH / f'{config_name}.yaml'
     cfg = config.load_cfg(cfg_file)
 
@@ -33,14 +34,16 @@ def qualitative_testing(config_name: str, checkpoint: int, threshold: int = None
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net.to(device)
     net.eval()
-    thresh = cfg.THRESH if threshold is None else threshold
+    thresh = cfg.THRESHOLDS.VALIDATION
 
     for index in tqdm(range(len(dataset))):
         sample = dataset.__getitem__(index)
         aoi_id = sample['aoi_id']
+        group_index = int(sample['group']) - 1
+        group = GROUPS[group_index][1]
+        country = sample['country']
 
         fig, axs = plt.subplots(2, 3, figsize=(10, 6))
-        fig.suptitle(aoi_id)
 
         optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
         plot_optical(axs[0, 0], optical_file, show_title=True)
@@ -48,7 +51,6 @@ def qualitative_testing(config_name: str, checkpoint: int, threshold: int = None
 
         sar_file = DATASET_PATH / 'sn7' / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
         plot_sar(axs[0, 2], sar_file, show_title=True)
-
 
         label = cfg.DATALOADER.LABEL
         label_file = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
@@ -64,10 +66,19 @@ def qualitative_testing(config_name: str, checkpoint: int, threshold: int = None
             plot_activation(axs[1, 2], prob, show_title=True)
             plot_prediction(axs[1, 1], pred, show_title=True)
 
-        plt.show()
+        title = f'{config_name} {aoi_id} ({country}, {group})'
+        if save_plots:
+            path = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'qualitative' / config_name
+            path.mkdir(exist_ok=True)
+            file = path / f'{title}.png'
+            plt.savefig(file, dpi=300, bbox_inches='tight')
+        else:
+            fig.suptitle(title)
+            plt.show()
+        plt.close()
 
 
-def quantitative_testing(config_name: str, checkpoint: int, save_output: bool = False, threshold: float = None):
+def quantitative_testing(config_name: str, checkpoint: int, save_output: bool = False):
     cfg_file = CONFIG_PATH / f'{config_name}.yaml'
     cfg = config.load_cfg(cfg_file)
 
@@ -159,7 +170,7 @@ def plot_quantitative_testing(config_names: list, names: list):
         plt.show()
 
 
-def qualitative_testing_comparison(config_names: list, checkpoints: list):
+def qualitative_testing_comparison(config_names: list, checkpoints: list, save_plots: bool = False):
 
     # setup
     configs = [config.load_cfg(CONFIG_PATH / f'{config_name}.yaml') for config_name in config_names]
@@ -184,8 +195,6 @@ def qualitative_testing_comparison(config_names: list, checkpoints: list):
             group_name = sample['group_name']
 
             if i == 0:
-                super_title = f'{aoi_id} ({country},  {group_name})'
-                fig.suptitle(super_title, size=20)
                 fig.subplots_adjust(wspace=0, hspace=0)
                 mpl.rcParams['axes.linewidth'] = 4
 
@@ -204,21 +213,36 @@ def qualitative_testing_comparison(config_names: list, checkpoints: list):
                 logits = net(x.unsqueeze(0))
                 prob = torch.sigmoid(logits[0, 0,])
                 prob = prob.detach().cpu().numpy()
-                pred = prob > cfg.THRESH
+                pred = prob > cfg.THRESHOLDS.VALIDATION
                 plot_prediction(axs[3 + i], pred, show_title=False)
 
-        plt.show()
+        title = f'{aoi_id} ({country},  {group_name})'
+        plt.suptitle(title)
+        if save_plots:
+            folder = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'qualitative' / '_'.join(config_names)
+            folder.mkdir(exist_ok=True)
+            file = folder / f'{title}.png'
+            plt.savefig(file, dpi=300, bbox_inches='tight')
+        else:
+            plt.show()
+        plt.close()
 
 
 if __name__ == '__main__':
-    # qualitative_testing('sar_dsm', 100)
-    # quantitative_testing('twostep_fusion', 100, save_output=True)
+    # qualitative_testing('sar', 100, save_plots=True)
+    # quantitative_testing('sar', 100, save_output=True)
     # quantitative_testing('optical_baseline_na', 100, save_output=True)
     # quantitative_testing('sar_baseline_na', 100, save_output=True)
 
     # not including africa experiment
     # plot_quantitative_testing(['baseline_sar', 'sar_baseline_na', 'baseline_optical', 'optical_baseline_na'],
     #                           ['SAR', 'SAR na', 'optical', 'optical na'])
+
+    # old vs. new
+    # sar
+    # plot_quantitative_testing(['baseline_sar', 'sar'], ['old sar', 'new sar'])
+    # optical
+    # plot_quantitative_testing(['baseline_optical', 'optical'], ['optical toa', 'optical sr'])
 
     # adding dsm to sar data experiment
     # plot_quantitative_testing(['baseline_sar', 'sar_dsm'], ['SAR', 'SAR with DSM'])
@@ -227,13 +251,14 @@ if __name__ == '__main__':
     # plot_quantitative_testing(['baseline_fusion', 'sar_prediction_fusion', 'sar_prediction_dsm_fusion'],
     #                           ['sar + optical', 'sar pred + optical', 'sar pred + dsm + optical'])
 
-
     # plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
     #                           ['SAR', 'optical', 'fusion', 'new fusion'])
 
-    plot_quantitative_testing(['sar', 'optical', 'twostep_fusion'],
-                              ['SAR', 'optical', 'twostep fusion'])
+    # plot_quantitative_testing(['sar', 'optical', 'twostep_fusion'],
+    #                           ['SAR', 'optical', 'twostep fusion'])
 
-    # qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
-    #                                [100, 100, 100, 100])
+    qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
+                                   [100, 100, 100, 100], save_plots=True)
+
+    # qualitative_testing_comparison(['baseline_sar', 'sar'], [100, 100], save_plots=True)
     pass

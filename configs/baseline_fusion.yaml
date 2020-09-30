@@ -1,6 +1,8 @@
 _BASE_: "base_v2.yaml"
 DEBUG: False
-THRESH: 0.38
+THRESHOLDS:
+  TRAIN: 0.42
+  VALIDATION: 0.38
 
 MODEL:
   TYPE: 'unet'

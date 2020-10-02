@@ -4,6 +4,7 @@ from utils.dataloader import UrbanExtractionDataset
 from experiment_manager.config import config
 from utils.metrics import *
 from tqdm import tqdm
+from torch.utils import data as torch_data
 import torch
 import numpy as np
 import json
@@ -28,19 +29,28 @@ def quantitative_validation(config_name: str, checkpoint: int, save_output: bool
     thresh = cfg.THRESHOLDS.TRAIN
 
     output_data = {'training': {}, 'validation': {}}
-    for run_type in ['training', 'validation']:
+    # training can be added
+    for run_type in ['validation']:
         sites = cfg.DATASETS.SITES.TRAINING if run_type == 'training' else cfg.DATASETS.SITES.VALIDATION
         for site in sites:
             print(f'Quantitative assessment {site} ({run_type})')
             dataset = UrbanExtractionDataset(cfg=cfg, dataset=site, no_augmentations=True)
-            y_true_set, y_pred_set = np.array([]), np.array([])
-            for index in tqdm(range(len(dataset))):
-                sample = dataset.__getitem__(index)
 
+            dataloader_kwargs = {
+                'batch_size': cfg.TRAINER.BATCH_SIZE,
+                'num_workers': cfg.DATALOADER.NUM_WORKER,
+                'shuffle': False,
+                'drop_last': False,
+                'pin_memory': True,
+            }
+            dataloader = torch_data.DataLoader(dataset, **dataloader_kwargs)
+
+            y_true_set, y_pred_set = np.array([]), np.array([])
+            for i, batch in enumerate(tqdm(dataloader)):
                 with torch.no_grad():
-                    x = sample['x'].to(device)
-                    y_true = sample['y'].to(device)
-                    logits = net(x.unsqueeze(0))
+                    x = batch['x'].to(device)
+                    y_true = batch['y'].to(device)
+                    logits = net(x)
                     y_pred = torch.sigmoid(logits) > thresh
 
                     y_true = y_true.detach().cpu().flatten().numpy()
@@ -90,19 +100,19 @@ def plot_quantitative_validation(config_names: list, names: list, run_type: str)
         plt.show()
 
 
-def random_selection(config_name: str, site: str, n: int):
+def random_selection(config_name: str, checkpoint: int, site: str, n: int):
     cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
 
     # loading dataset
     dataset = UrbanExtractionDataset(cfg, site, no_augmentations=True)
 
     # loading network
-    net = load_network(cfg, NETWORK_PATH / f'{config_name}.pkl')
+    net = load_network(cfg, NETWORK_PATH / f'{config_name}_{checkpoint}.pkl')
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net.to(device)
     net.eval()
 
-    thresh = cfg.THRESHOLD.TRAIN
+    thresh = cfg.THRESHOLDS.TRAIN
 
     item_indices = list(np.random.randint(0, len(dataset), size=n))
 
@@ -113,36 +123,41 @@ def random_selection(config_name: str, site: str, n: int):
         fig, axs = plt.subplots(2, 3, figsize=(10, 6))
 
         optical_file = DATASET_PATH / site / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
-        plot_optical(axs[0, 0], optical_file, show_title=True)
-        plot_optical(axs[0, 1], optical_file, vis='false_color', show_title=True)
+        plot_optical(axs[0, 0], optical_file, vis='false_color', show_title=True)
 
         sar_file = DATASET_PATH / site / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
-        plot_sar(axs[0, 2], sar_file, show_title=True)
+        plot_sar(axs[0, 1], sar_file, show_title=True)
 
         label = cfg.DATALOADER.LABEL
         label_file = DATASET_PATH / site / label / f'{label}_{site}_{patch_id}.tif'
-        plot_buildings(axs[1, 0], label_file, show_title=True)
+        plot_buildings(axs[0, 2], label_file, show_title=True)
 
         with torch.no_grad():
             x = sample['x'].to(device)
             logits = net(x.unsqueeze(0))
-            prob = torch.sigmoid(logits[0, 0,])
+            prob = torch.sigmoid(logits[0, 0, ])
             prob = prob.detach().cpu().numpy()
             pred = prob > thresh
 
-            plot_activation(axs[1, 2], prob, show_title=True)
-            plot_prediction(axs[1, 1], pred, show_title=True)
+            plot_probability(axs[1, 0], prob, show_title=True)
+            plot_probability_histogram(axs[1, 1], prob)
+            # compute mean probabilities
+            mean_prob_pos = np.mean(np.ma.array(prob, mask=np.logical_not(pred)))
+            mean_prob_neg = np.mean(np.ma.array(1 - prob, mask=pred))
+            axs[1, 1].set_title(f'hist prob ({mean_prob_pos:.2f} {mean_prob_neg:.2f})')
+            plot_prediction(axs[1, 2], pred, show_title=True)
+
 
         plt.show()
 
 
 if __name__ == '__main__':
-    config_name = 'sar'
+    config_name = 'optical'
     checkpoint = 100
 
-    # quantitative_validation(config_name, checkpoint, True)
-    plot_quantitative_validation(['sar'], ['sar'], run_type='validation')
-    # random_selection(config_name, 'montreal', 20)
+    # quantitative_validation(config_name, checkpoint, save_output=True)
+    # plot_quantitative_validation(['sar'], ['sar'], run_type='validation')
+    random_selection(config_name, checkpoint, 'vancouver', 20)
 
     # fusion_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_fusion.json'
     # optical_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_optical.json'

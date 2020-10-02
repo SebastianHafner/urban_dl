@@ -45,8 +45,30 @@ def plot_buildings(ax, file: Path, show_title: bool = False):
         ax.set_title('ground truth')
 
 
-def plot_activation(ax, activation: np.ndarray, show_title: bool = False):
-    ax.imshow(activation, cmap='jet', vmin=0, vmax=1)
+def plot_stable_buildings(ax, file_all: Path, file_stable: Path, show_title: bool = False):
+    img_all, _, _ = read_tif(file_all)
+    img_all = img_all > 0
+    img_all = img_all if len(img_all.shape) == 2 else img_all[:, :, 0]
+
+    img_stable, _, _ = read_tif(file_stable)
+    img_stable = img_stable > 0
+    img_stable = img_stable if len(img_stable.shape) == 2 else img_stable[:, :, 0]
+
+    img_instable = np.logical_and(img_all, np.logical_not(img_stable)) * 2
+
+    cmap = colors.ListedColormap(['white', 'red', 'blue'])
+    boundaries = [0, 0.5, 1, 1.5]
+    norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
+
+    ax.imshow(img_all + img_instable, cmap=cmap, norm=norm)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    if show_title:
+        ax.set_title('ground truth')
+
+
+def plot_probability(ax, probability: np.ndarray, show_title: bool = False):
+    ax.imshow(probability, cmap='jet', vmin=0, vmax=1)
     ax.set_xticks([])
     ax.set_yticks([])
     if show_title:
@@ -62,3 +84,21 @@ def plot_prediction(ax, prediction: np.ndarray, show_title: bool = False):
     ax.set_yticks([])
     if show_title:
         ax.set_title('prediction')
+
+
+def plot_probability_histogram(ax, probability: np.ndarray, show_title: bool = False):
+
+    bin_edges = np.linspace(0, 1, 21)
+    values = probability.flatten()
+    ax.hist(values, bins=bin_edges, range=(0, 1))
+    ax.set_xlim((0, 1))
+    ax.set_xticks(np.linspace(0, 1, 11))
+    ax.set_yscale('log')
+
+    if show_title:
+        ax.set_title('probability histogram')
+
+
+if __name__ == '__main__':
+    arr = np.array([[0, 0.01, 0.1, 0.89, 0.9, 1, 1, 1]]).flatten()
+    # hist, bin_edges = np.histogram(arr, bins=10, range=(0, 1))

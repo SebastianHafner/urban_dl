@@ -69,7 +69,7 @@ def preprocess(path: Path, site: str, patch_size: int = 256, dsm: bool = False):
     data = {
         'label': 'buildings',
         'site': site,
-        'sentinel1_features': ['VV', 'VH'],
+        'sentinel1_features': ['VV_mean', 'VV_stdDev', 'VH_mean', 'VH_stdDev'],
         'sentinel2_features': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'],
         'samples': samples
     }

@@ -63,7 +63,7 @@ def qualitative_testing(config_name: str, checkpoint: int, save_plots: bool = Fa
             prob = prob.detach().cpu().numpy()
             pred = prob > thresh
 
-            plot_activation(axs[1, 2], prob, show_title=True)
+            plot_probability(axs[1, 2], prob, show_title=True)
             plot_prediction(axs[1, 1], pred, show_title=True)
 
         title = f'{config_name} {aoi_id} ({country}, {group})'
@@ -140,6 +140,71 @@ def quantitative_testing(config_name: str, checkpoint: int, save_output: bool = 
         output_file = DATASET_PATH.parent / 'testing' / f'testing_{config_name}.json'
         with open(str(output_file), 'w', encoding='utf-8') as f:
             json.dump(output_data, f, ensure_ascii=False, indent=4)
+
+
+def advanced_qualitative_testing(config_name: str, checkpoint: int, save_plots: bool = False):
+    cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
+
+    # loading dataset
+    dataset = SpaceNet7Dataset(cfg)
+
+    # loading network
+    net = load_network(cfg, NETWORK_PATH / f'{config_name}_{checkpoint}.pkl')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    net.to(device)
+    net.eval()
+    thresh = cfg.THRESHOLDS.VALIDATION
+
+    for index in tqdm(range(len(dataset))):
+        sample = dataset.__getitem__(index)
+        aoi_id = sample['aoi_id']
+        group_index = int(sample['group']) - 1
+        group = GROUPS[group_index][1]
+        country = sample['country']
+
+        fig, axs = plt.subplots(2, 3, figsize=(10, 6))
+
+        optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
+        plot_optical(axs[0, 0], optical_file, vis='false_color', show_title=True)
+
+        sar_file = DATASET_PATH / 'sn7' / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
+        plot_sar(axs[0, 1], sar_file, show_title=True)
+
+        label = cfg.DATALOADER.LABEL
+        file_all = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
+        ref_file = DATASET_PATH / 'sn7' / f'reference_{label}' / f'{label}_{aoi_id}.tif'
+        # plot_stable_buildings(axs[0, 2], file_all, file_stable, show_title=True)
+        plot_buildings(axs[0, 2], ref_file, show_title=True)
+
+        with torch.no_grad():
+            x = sample['x'].to(device)
+            logits = net(x.unsqueeze(0))
+            prob = torch.sigmoid(logits[0, 0, ])
+            prob = prob.detach().cpu().numpy()
+            pred = prob > thresh
+
+            plot_probability(axs[1, 0], prob, show_title=True)
+
+            plot_probability_histogram(axs[1, 1], prob)
+
+            # compute mean probabilities
+            mean_prob_pos = np.mean(np.ma.array(prob, mask=np.logical_not(pred)))
+            mean_prob_neg = np.mean(np.ma.array(1 - prob, mask=pred))
+            axs[1, 1].set_title(f'hist prob ({mean_prob_pos:.2f} {mean_prob_neg:.2f})')
+
+            plot_prediction(axs[1, 2], pred, show_title=True)
+
+
+        title = f'{config_name} {aoi_id} ({country}, {group})'
+        if save_plots:
+            path = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'histogram' / config_name
+            path.mkdir(exist_ok=True)
+            file = path / f'{title}.png'
+            plt.savefig(file, dpi=300, bbox_inches='tight')
+        else:
+            fig.suptitle(title)
+            plt.show()
+        plt.close()
 
 
 def plot_quantitative_testing(config_names: list, names: list):
@@ -228,8 +293,42 @@ def qualitative_testing_comparison(config_names: list, checkpoints: list, save_p
         plt.close()
 
 
+def plot_reference_comparison(start_index: int = 0):
+    cfg = config.load_cfg(CONFIG_PATH / f'base_v3.yaml')
+    dataset = SpaceNet7Dataset(cfg)
+
+    for index in tqdm(range(len(dataset))):
+        if index >= start_index:
+            sample = dataset.__getitem__(index)
+            aoi_id = sample['aoi_id']
+            group_index = int(sample['group']) - 1
+            group = GROUPS[group_index][1]
+            country = sample['country']
+
+            fig, axs = plt.subplots(2, 2, figsize=(6, 6))
+
+            optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
+            plot_optical(axs[0, 0], optical_file, vis='false_color', show_title=True)
+
+            sar_file = DATASET_PATH / 'sn7' / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
+            plot_sar(axs[0, 1], sar_file, show_title=True)
+
+            label = cfg.DATALOADER.LABEL
+            buildings_file = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
+            plot_buildings(axs[1, 0], buildings_file, show_title=True)
+            ref_buildings_file = DATASET_PATH / 'sn7' / f'reference_{label}' / f'{label}_{aoi_id}.tif'
+            plot_buildings(axs[1, 1], ref_buildings_file, show_title=True)
+
+            title = f'{aoi_id} ({country}, {group})'
+            fig.suptitle(title)
+            plt.show()
+            plt.close()
+
+
 if __name__ == '__main__':
-    # qualitative_testing('sar', 100, save_plots=True)
+    # qualitative_testing('sar', 100, save_plots=False)
+    # advanced_qualitative_testing('optical', 100, save_plots=False)
+    plot_reference_comparison(40)
     # quantitative_testing('sar', 100, save_output=True)
     # quantitative_testing('optical_baseline_na', 100, save_output=True)
     # quantitative_testing('sar_baseline_na', 100, save_output=True)
@@ -243,6 +342,8 @@ if __name__ == '__main__':
     # plot_quantitative_testing(['baseline_sar', 'sar'], ['old sar', 'new sar'])
     # optical
     # plot_quantitative_testing(['baseline_optical', 'optical'], ['optical toa', 'optical sr'])
+    # plot_quantitative_testing(['baseline_sar', 'sar', 'baseline_optical', 'optical'],
+    #                           ['old sar', 'new sar', 'optical toa', 'optical sr'])
 
     # adding dsm to sar data experiment
     # plot_quantitative_testing(['baseline_sar', 'sar_dsm'], ['SAR', 'SAR with DSM'])
@@ -257,8 +358,8 @@ if __name__ == '__main__':
     # plot_quantitative_testing(['sar', 'optical', 'twostep_fusion'],
     #                           ['SAR', 'optical', 'twostep fusion'])
 
-    qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
-                                   [100, 100, 100, 100], save_plots=True)
+    # qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
+    #                                [100, 100, 100, 100], save_plots=True)
 
-    # qualitative_testing_comparison(['baseline_sar', 'sar'], [100, 100], save_plots=True)
-    pass
+    # qualitative_testing_comparison(['sar', 'optical'], [100, 100], save_plots=True)
+

@@ -207,6 +207,75 @@ def advanced_qualitative_testing(config_name: str, checkpoint: int, save_plots: 
         plt.close()
 
 
+def out_of_distribution_check(n: int = 60, save_plots: bool = False):
+
+    for index in range(n):
+
+        fig, axs = plt.subplots(2, 5, figsize=(14, 6))
+
+        for i, sensor in enumerate(['optical', 'sar']):
+
+            # loading config and dataset
+            cfg = config.load_cfg(CONFIG_PATH / f'{sensor}.yaml')
+            dataset = SpaceNet7Dataset(cfg)
+
+            sample = dataset.__getitem__(index)
+
+            if i == 0:
+                aoi_id = sample['aoi_id']
+                group_index = int(sample['group']) - 1
+                group = GROUPS[group_index][1]
+                country = sample['country']
+
+                optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
+                plot_optical(axs[0, 0], optical_file, vis='false_color', show_title=True)
+
+                sar_file = DATASET_PATH / 'sn7' / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
+                plot_sar(axs[1, 0], sar_file, show_title=True)
+
+            # loading network
+            net = load_network(cfg, NETWORK_PATH / f'{sensor}_100.pkl')
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            net.to(device)
+            net.eval()
+            thresh = cfg.THRESHOLDS.VALIDATION
+
+            with torch.no_grad():
+                x = sample['x'].to(device)
+                logits = net(x.unsqueeze(0))
+                prob = torch.sigmoid(logits[0, 0, ])
+                prob = prob.detach().cpu().numpy()
+                pred = prob > thresh
+
+                plot_probability(axs[i, 1], prob, show_title=True)
+
+                plot_probability_histogram(axs[i, 2], prob)
+                axs[i, 2].axvline(x=thresh, color='k')
+                axs[i, 2].set_ylim((0, 10**5))
+
+                # compute mean probabilities
+                mean_prob_pos = np.mean(np.ma.array(prob, mask=np.logical_not(pred)))
+                mean_prob_neg = np.mean(np.ma.array(1 - prob, mask=pred))
+                axs[i, 2].set_title(f'hist prob ({mean_prob_pos:.2f} {mean_prob_neg:.2f})')
+
+                plot_prediction(axs[i, 3], pred, show_title=True)
+
+            label = cfg.DATALOADER.LABEL
+            label_file = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
+            plot_buildings(axs[i, 4], label_file, show_title=True)
+
+        title = f'out of distirbution detection {aoi_id} ({country}, {group})'
+        if save_plots:
+            path = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'out_of_distribution_detection'
+            path.mkdir(exist_ok=True)
+            file = path / f'{title}.png'
+            plt.savefig(file, dpi=300, bbox_inches='tight')
+        else:
+            fig.suptitle(title)
+            plt.show()
+        plt.close()
+
+
 def plot_quantitative_testing(config_names: list, names: list):
 
     path = DATASET_PATH.parent / 'testing'
@@ -328,7 +397,8 @@ def plot_reference_comparison(start_index: int = 0):
 if __name__ == '__main__':
     # qualitative_testing('sar', 100, save_plots=False)
     # advanced_qualitative_testing('optical', 100, save_plots=False)
-    plot_reference_comparison(40)
+    # plot_reference_comparison(40)
+    out_of_distribution_check(60)
     # quantitative_testing('sar', 100, save_output=True)
     # quantitative_testing('optical_baseline_na', 100, save_output=True)
     # quantitative_testing('sar_baseline_na', 100, save_output=True)

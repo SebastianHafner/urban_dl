@@ -92,7 +92,7 @@ def plot_probability_histogram(ax, probability: np.ndarray, show_title: bool = F
     values = probability.flatten()
     ax.hist(values, bins=bin_edges, range=(0, 1))
     ax.set_xlim((0, 1))
-    ax.set_xticks(np.linspace(0, 1, 11))
+    ax.set_xticks(np.linspace(0, 1, 5))
     ax.set_yscale('log')
 
     if show_title:

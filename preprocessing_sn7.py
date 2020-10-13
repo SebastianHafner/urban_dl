@@ -186,6 +186,42 @@ def construct_reference_buildings_file(metadata_file: Path):
         json.dump(merged_buildings, f, ensure_ascii=False, indent=4)
 
 
+def merge_time_series(aoi_id):
+
+    all_mighty_container = None
+    all_mighty_ids = None
+
+    aoi_path = SPACENET7_PATH / aoi_id
+    buildings_path = aoi_path / 'labels_match_pix'
+    udm_path = aoi_path / 'UDM_masks'
+    building_files = [f for f in buildings_path.glob('**/*')]
+
+    for building_file in building_files:
+        name = building_file.name
+        name_parts = name.split('_')
+
+        year = int(name_parts[2])
+        month = int(name_parts[3])
+
+        fc = load_json(building_file)
+
+        # TODO: check for UDM mask
+
+        if all_mighty_container is None:
+            all_mighty_container = fc
+            all_mighty_ids = [b['properties']['Id'] for b in fc['features']]
+        else:
+            buildings = fc['features']
+            for building in buildings:
+                building_id = building['properties']['Id']
+                if building_id in all_mighty_ids:
+                    continue
+                else:
+                    all_mighty_ids.append(building_id)
+                    
+
+
+
 if __name__ == '__main__':
 
     ee.Initialize()

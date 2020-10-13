@@ -243,9 +243,14 @@ def out_of_distribution_check(n: int = 60, save_plots: bool = False):
             with torch.no_grad():
                 x = sample['x'].to(device)
                 logits = net(x.unsqueeze(0))
-                prob = torch.sigmoid(logits[0, 0, ])
-                prob = prob.detach().cpu().numpy()
+                prob = torch.sigmoid(logits.squeeze()).detach().cpu()
                 pred = prob > thresh
+                pred = pred
+                gt = sample['y'].to('cpu').squeeze()
+
+                f1 = f1_score(gt.flatten().unsqueeze(0), pred.flatten().unsqueeze(0)).item()
+
+                prob, pred = prob.numpy(), pred.numpy()
 
                 plot_probability(axs[i, 1], prob, show_title=True)
 
@@ -259,21 +264,86 @@ def out_of_distribution_check(n: int = 60, save_plots: bool = False):
                 axs[i, 2].set_title(f'hist prob ({mean_prob_pos:.2f} {mean_prob_neg:.2f})')
 
                 plot_prediction(axs[i, 3], pred, show_title=True)
+                axs[i, 3].set_title(f'pred F1 {f1:.3f}')
 
             label = cfg.DATALOADER.LABEL
             label_file = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
             plot_buildings(axs[i, 4], label_file, show_title=True)
 
-        title = f'out of distirbution detection {aoi_id} ({country}, {group})'
+        title = f'{aoi_id} ({country}, {group})'
+        plt.suptitle(title)
         if save_plots:
             path = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'out_of_distribution_detection'
             path.mkdir(exist_ok=True)
-            file = path / f'{title}.png'
+            file = path / f'out_of_distribution_detection_{aoi_id}.png'
             plt.savefig(file, dpi=300, bbox_inches='tight')
         else:
-            fig.suptitle(title)
             plt.show()
         plt.close()
+
+
+def out_of_distribution_correlation(config_name: str, checkpoint: int, save_plot: bool = False):
+
+    # loading config and dataset
+    cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
+    dataset = SpaceNet7Dataset(cfg)
+
+    # loading network
+    net = load_network(cfg, NETWORK_PATH / f'{config_name}_{checkpoint}.pkl')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    net.to(device)
+    net.eval()
+    thresh = cfg.THRESHOLDS.VALIDATION
+
+    f1_scores = []
+    mean_pos_probabilities = []
+    for index in tqdm(range(len(dataset))):
+        sample = dataset.__getitem__(index)
+
+        with torch.no_grad():
+            x = sample['x'].to(device)
+            logits = net(x.unsqueeze(0))
+            prob = torch.sigmoid(logits).cpu().detach().squeeze()
+            pred = prob > thresh
+            gt = sample['y'].to('cpu').detach().squeeze()
+            f1 = f1_score(gt.flatten().unsqueeze(0), pred.flatten().unsqueeze(0)).item()
+            f1_scores.append(f1)
+
+            pred, prob = pred.numpy(), prob.numpy()
+
+            # compute mean probabilities
+            mean_prob_pos = np.mean(np.ma.array(prob, mask=np.logical_not(pred)))
+            mean_pos_probabilities.append(mean_prob_pos)
+            mean_prob_neg = np.mean(np.ma.array(1 - prob, mask=pred))
+
+    # computing R square
+    f1_scores = np.array(f1_scores)
+    mean_pos_probabilities = np.array(mean_pos_probabilities)
+    corr = np.corrcoef(mean_pos_probabilities, f1_scores)
+    r_square = corr[0, 1]
+
+    fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+    ax.scatter(mean_pos_probabilities, f1_scores)
+    ax.set_xlim((0, 1))
+    ax.set_xlabel('mean built-up probability')
+    ax.set_ylim((0, 1))
+    ax.set_ylabel('f1 score')
+    title = f'correlation_{config_name}'
+    ax.set_title(f'{title} (R square {r_square:.2f})')
+
+    x = np.array([0, 1])
+    m, b = np.polyfit(mean_pos_probabilities, f1_scores, 1)
+    ax.plot(x, m * x + b, color='k')
+
+    if save_plot:
+        path = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'out_of_distribution_detection' / config_name
+        path.mkdir(exist_ok=True)
+        file = path / f'{title}.png'
+        plt.savefig(file, dpi=300, bbox_inches='tight')
+    else:
+        plt.show()
+    plt.close()
+
 
 
 def plot_quantitative_testing(config_names: list, names: list):
@@ -398,7 +468,8 @@ if __name__ == '__main__':
     # qualitative_testing('sar', 100, save_plots=False)
     # advanced_qualitative_testing('optical', 100, save_plots=False)
     # plot_reference_comparison(40)
-    out_of_distribution_check(60)
+    out_of_distribution_check(60, save_plots=True)
+    # out_of_distribution_correlation('optical', 100, save_plot=False)
     # quantitative_testing('sar', 100, save_output=True)
     # quantitative_testing('optical_baseline_na', 100, save_output=True)
     # quantitative_testing('sar_baseline_na', 100, save_output=True)

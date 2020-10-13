@@ -194,7 +194,17 @@ def merge_time_series(aoi_id):
     aoi_path = SPACENET7_PATH / aoi_id
     buildings_path = aoi_path / 'labels_match_pix'
     udm_path = aoi_path / 'UDM_masks'
-    building_files = [f for f in buildings_path.glob('**/*')]
+
+    def file2number(file: Path) -> int:
+        fname = file.name
+        parts = fname.split('_')
+        year = int(parts[2])
+        month = int(parts[3])
+        return year * 12 + month
+
+    files = [(f, file2number(f)) for f in buildings_path.glob('**/*')]
+    files = sorted(files, key=lambda f: f[1])
+    building_files = [item[0] for item in files]
 
     for building_file in building_files:
         name = building_file.name

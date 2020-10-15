@@ -67,6 +67,18 @@ def plot_stable_buildings(ax, file_all: Path, file_stable: Path, show_title: boo
         ax.set_title('ground truth')
 
 
+def plot_stable_buildings_v2(ax, arr: np.ndarray, show_title: bool = True):
+    cmap = colors.ListedColormap(['white', 'blue', 'red'])
+    print(np.min(arr), np.max(arr))
+    boundaries = [-0.5, 0.5, 1.5, 2.5]
+    norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
+    ax.imshow(arr, cmap=cmap, norm=norm)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    if show_title:
+        ax.set_title('ground truth')
+
+
 def plot_probability(ax, probability: np.ndarray, show_title: bool = False):
     ax.imshow(probability, cmap='jet', vmin=0, vmax=1)
     ax.set_xticks([])

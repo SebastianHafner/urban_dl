@@ -12,6 +12,9 @@ from experiment_manager.config import config
 from utils.metrics import *
 from utils.geotiff import *
 
+
+# TODO: add coordinates to title for area of interests
+
 URBAN_EXTRACTION_PATH = Path('/storage/shafner/urban_extraction')
 DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction_dataset')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
@@ -266,9 +269,14 @@ def out_of_distribution_check(n: int = 60, save_plots: bool = False):
                 plot_prediction(axs[i, 3], pred, show_title=True)
                 axs[i, 3].set_title(f'pred F1 {f1:.3f}')
 
-            label = cfg.DATALOADER.LABEL
-            label_file = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
-            plot_buildings(axs[i, 4], label_file, show_title=True)
+        label = cfg.DATALOADER.LABEL
+        label_file = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
+        plot_buildings(axs[0, 4], label_file, show_title=True)
+
+        SN7_PATH = Path('/storage/shafner/spacenet7/train')
+        change_file = SN7_PATH / aoi_id / 'auxiliary' / f'change.tif'
+        arr, _, _ = read_tif(change_file)
+        plot_stable_buildings_v2(axs[1, 4], arr)
 
         title = f'{aoi_id} ({country}, {group})'
         plt.suptitle(title)
@@ -466,9 +474,9 @@ def plot_reference_comparison(start_index: int = 0):
 
 if __name__ == '__main__':
     # qualitative_testing('sar', 100, save_plots=False)
-    # advanced_qualitative_testing('optical', 100, save_plots=False)
+    advanced_qualitative_testing('arid_optical', 100, save_plots=True)
     # plot_reference_comparison(40)
-    out_of_distribution_check(60, save_plots=True)
+    # out_of_distribution_check(60, save_plots=False)
     # out_of_distribution_correlation('optical', 100, save_plot=False)
     # quantitative_testing('sar', 100, save_output=True)
     # quantitative_testing('optical_baseline_na', 100, save_output=True)

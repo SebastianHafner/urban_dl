@@ -1,0 +1,17 @@
+_BASE_: "base_v3.yaml"
+
+THRESHOLDS:
+  TRAIN: 0.46
+  VALIDATION: 0.46  # actual validation ts is 0.13
+
+MODEL:
+  IN_CHANNELS: 10
+
+DATALOADER:
+  MODE: 'optical'
+  SENTINEL2_BANDS: ['B2', 'B3', 'B4', 'B5', 'B6', 'B6', 'B8', 'B8A', 'B11', 'B12']
+
+DATASETS:
+  SITES:
+    TRAINING: ['saltlakecity', 'phoenix', 'lasvegas', 'losangeles', 'albuquerque', 'elpaso', 'sandiego', 'santafe',
+                'stgeorge', 'tucson']

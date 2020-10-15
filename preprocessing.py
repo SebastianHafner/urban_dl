@@ -94,12 +94,12 @@ if __name__ == '__main__':
 
     training = ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
                 'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
-                'charlston', 'seattle', 'daressalam']
+                'charlston', 'seattle', 'daressalam', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson']
     validation = ['houston', 'sanfrancisco', 'vancouver', 'newyork', 'calgary', 'kampala']
     all_sites = training + validation
     for site in all_sites:
         path = dataset_path / site
-        preprocess(path, site, 256, dsm=True)
+        preprocess(path, site, 256, dsm=False)
 
     # sites_split(northamerican_sites, 0.8)
 

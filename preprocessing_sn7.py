@@ -1,16 +1,93 @@
 from pathlib import Path
 from utils.geotiff import *
 import json
-import ee
 import utm
 import pandas as pd
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+from utils.visualization import *
 
-SPACENET7_PATH = Path('C:/Users/shafner/urban_extraction/data/spacenet7/train')
+SN7_PATH = Path('C:/Users/shafner/urban_extraction/data/spacenet7/train')
+SN7_PATH = Path('/storage/shafner/spacenet7/train')
+METADATA_FILE = SN7_PATH.parent / 'sn7_metadata_v3.csv'
+
+
+
+def get_all_aoi_ids() -> list:
+    return [f.name for f in SN7_PATH.iterdir() if f.is_dir()]
+
+
+def fname2date(fname: str) -> tuple:
+    fname_parts = fname.split('_')
+    year = int(fname_parts[2])
+    month = int(fname_parts[3])
+    return year, month
+
+
+def fname2id(fname: str) -> tuple:
+    fname_parts = fname.split('_')
+    aoi_id = fname_parts[5]
+    return aoi_id
+
+def get_available_dates(aoi_id: str) -> list:
+    images_path = SN7_PATH / aoi_id / 'images'
+    dates = [fname2date(f.name) for f in images_path.glob('**/*')]
+    return dates
+
+
+def create_base_name(aoi_id: str, year: int, month: int) -> str:
+    return f'global_monthly_{year}_{month:02d}_mosaic_{aoi_id}'
+
+
+def get_shape(aoi_id: str) -> tuple:
+    images_path = SN7_PATH / aoi_id / 'images'
+    image_file = [f for f in images_path.glob('**/*')][0]
+    arr, _, _ = read_tif(image_file)
+    return arr.shape[0], arr.shape[1]
+
+
+def get_geo(aoi_id: str):
+    images_path = SN7_PATH / aoi_id / 'images'
+    image_file = [f for f in images_path.glob('**/*')][0]
+    _, transform, crs = read_tif(image_file)
+    return transform, crs
+
+# converts list of geojson polygons in pixel coordinates to raster image
+def polygons2raster(polygons: list, shape: tuple = (1024, 1024)) -> np.ndarray:
+    raster = np.zeros(shape)
+
+    for polygon in polygons:
+        # list of polygon elements: first element is the polygon outline and others are holes
+        polygon_elements = polygon['geometry']['coordinates']
+
+        # filling in the whole polygon
+        polygon_outline = polygon_elements[0]
+        first_coord = polygon_outline[0]
+        # TODO: some coords are 3-d for some stupid reason, maybe fix?
+        if len(first_coord) == 3:
+            polygon_outline = [coord[:2] for coord in polygon_outline]
+        polygon_outline = np.array(polygon_outline, dtype=np.int32)
+        cv2.fillPoly(raster, [polygon_outline], 1)
+
+        # setting holes in building back to 0
+        # all building elements but the first one are considered holes
+        if len(polygon_elements) > 1:
+            for j in range(1, len(polygon_elements)):
+                polygon_hole = polygon_elements[j]
+                first_coord = polygon_hole[0]
+                if len(first_coord) == 3:
+                    polygon_hole = [coord[:2] for coord in polygon_hole]
+                polygon_hole = np.array(polygon_hole, dtype=np.int32)
+                cv2.fillPoly(raster, [polygon_hole], 0)
+
+    return raster
 
 
 def extract_bbox(aoi_id: str):
 
-    root_path = SPACENET7_PATH / aoi_id
+    root_path = SN7_PATH / aoi_id
     img_folder = root_path / 'images'
     all_img_files = list(img_folder.glob('**/*.tif'))
     img_file = all_img_files[0]
@@ -38,7 +115,7 @@ def epsg_utm(bbox):
 
 
 def building_footprint_features(aoi_id, year, month):
-    root_path = SPACENET7_PATH / aoi_id
+    root_path = SN7_PATH / aoi_id
     label_folder = root_path / 'labels_match'
     label_file = label_folder / f'global_monthly_{year}_{month:02d}_mosaic_{aoi_id}_Buildings.geojson'
 
@@ -63,7 +140,7 @@ def construct_buildings_file(metadata_file: Path):
     for index, row in metadata.iterrows():
         aoi_id, year, month = row['aoi_id'], row['year'], row['month']
         file_name = f'global_monthly_{year}_{month:02d}_mosaic_{aoi_id}_Buildings.geojson'
-        file = SPACENET7_PATH / aoi_id / 'labels_match' / file_name
+        file = SN7_PATH / aoi_id / 'labels_match' / file_name
         with open(str(file)) as f:
             buildings = json.load(f)
 
@@ -74,7 +151,7 @@ def construct_buildings_file(metadata_file: Path):
             merged_features.extend(buildings['features'])
             merged_buildings['features'] = merged_features
 
-    buildings_file = SPACENET7_PATH.parent / f'sn7_buildings.geojson'
+    buildings_file = SN7_PATH.parent / f'sn7_buildings.geojson'
     with open(str(buildings_file), 'w', encoding='utf-8') as f:
         json.dump(merged_buildings, f, ensure_ascii=False, indent=4)
 
@@ -100,7 +177,7 @@ def construct_samples_file(metadata_file: Path):
         'group_names': {'1': 'NA_AU', '2': 'SA', '3': 'EU', '4': 'SSA', '5': 'NAF_ME', '6': 'AS'},
         'samples': samples
     }
-    dataset_file = SPACENET7_PATH.parent / f'samples.json'
+    dataset_file = SN7_PATH.parent / f'samples.json'
     with open(str(dataset_file), 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
@@ -118,7 +195,7 @@ def find_offset_file(aoi_id: str, year: int, month: int):
 
     while True:
         ref_file_name = f'global_monthly_{ref_year}_{ref_month:02d}_mosaic_{aoi_id}_Buildings.geojson'
-        ref_file = SPACENET7_PATH / aoi_id / 'labels_match' / ref_file_name
+        ref_file = SN7_PATH / aoi_id / 'labels_match' / ref_file_name
         if ref_file.exists():
             return ref_file
         else:
@@ -135,7 +212,7 @@ def construct_stable_buildings_file(metadata_file: Path):
     for index, row in metadata.iterrows():
         aoi_id, year, month = row['aoi_id'], row['year'], row['month']
         file_name = f'global_monthly_{year}_{month:02d}_mosaic_{aoi_id}_Buildings.geojson'
-        file = SPACENET7_PATH / aoi_id / 'labels_match' / file_name
+        file = SN7_PATH / aoi_id / 'labels_match' / file_name
 
         ref_file = find_offset_file(aoi_id, year, month)
 
@@ -181,63 +258,123 @@ def construct_reference_buildings_file(metadata_file: Path):
             merged_features.extend(buildings['features'])
             merged_buildings['features'] = merged_features
 
-    buildings_file = SPACENET7_PATH.parent / f'sn7_reference_buildings.geojson'
+    buildings_file = SN7_PATH.parent / f'sn7_reference_buildings.geojson'
     with open(str(buildings_file), 'w', encoding='utf-8') as f:
         json.dump(merged_buildings, f, ensure_ascii=False, indent=4)
 
 
-def merge_time_series(aoi_id):
+def create_label_masks(aoi_id):
 
-    all_mighty_container = None
-    all_mighty_ids = None
+    masks_path = SN7_PATH / aoi_id / 'masks'
+    masks_path.mkdir(exist_ok=True)
 
-    aoi_path = SPACENET7_PATH / aoi_id
-    buildings_path = aoi_path / 'labels_match_pix'
-    udm_path = aoi_path / 'UDM_masks'
+    shape = get_shape(aoi_id)
 
-    def file2number(file: Path) -> int:
-        fname = file.name
-        parts = fname.split('_')
-        year = int(parts[2])
-        month = int(parts[3])
-        return year * 12 + month
+    dates = get_available_dates(aoi_id)
+    for year, month in dates:
+        base_name = create_base_name(aoi_id, year, month)
 
-    files = [(f, file2number(f)) for f in buildings_path.glob('**/*')]
-    files = sorted(files, key=lambda f: f[1])
-    building_files = [item[0] for item in files]
+        image_file = SN7_PATH / aoi_id / 'images' / f'{base_name}.tif'
+        _, transform, crs = read_tif(image_file)
 
-    for building_file in building_files:
-        name = building_file.name
-        name_parts = name.split('_')
+        buildings_file = SN7_PATH / aoi_id / 'labels_match_pix' / f'{base_name}_Buildings.geojson'
+        buildings_data = load_json(buildings_file)
+        buildings = buildings_data['features']
+        mask = polygons2raster(buildings, shape=shape)
 
-        year = int(name_parts[2])
-        month = int(name_parts[3])
+        udm_file = SN7_PATH / aoi_id / 'UDM_masks' / f'{base_name}_UDM.tif'
+        if udm_file.exists():
+            udm, _, _ = read_tif(udm_file)
+            mask = np.clip(mask + (udm.squeeze() / 255 * 2), 0, 2)
 
-        fc = load_json(building_file)
 
-        # TODO: check for UDM mask
+        output_file = masks_path / f'{base_name}_mask.tif'
+        write_tif(output_file, np.expand_dims(mask, -1), transform, crs)
 
-        if all_mighty_container is None:
-            all_mighty_container = fc
-            all_mighty_ids = [b['properties']['Id'] for b in fc['features']]
-        else:
-            buildings = fc['features']
-            for building in buildings:
-                building_id = building['properties']['Id']
-                if building_id in all_mighty_ids:
-                    continue
-                else:
-                    all_mighty_ids.append(building_id)
-                    
 
+# requires label masks
+def show_stable_building_pixels(aoi_id: str):
+    mask_path = SN7_PATH / aoi_id / 'masks'
+    mask_files = [f for f in mask_path.glob('**/*')]
+
+    shape = (*get_shape(aoi_id), len(mask_files))
+    all_masks = np.zeros(shape)
+    for i, file in enumerate(mask_files):
+        mask, _, _ = read_tif(file)
+        all_masks[:, :, i] = mask.squeeze()
+
+    # TODO: could be all masked
+    stable_buildings = np.all(all_masks, axis=-1).astype('uint8')
+
+    # non stable buildings
+    only_buildings = all_masks.copy()
+    only_buildings[only_buildings == 2] = 0
+    all_buildings = np.any(only_buildings, axis=-1).astype('uint8')
+    img = all_buildings + stable_buildings
+
+    fig, axs = plt.subplots(1, 3, figsize=(10, 5))
+    axs[0].imshow(all_buildings, interpolation='nearest')
+    axs[1].imshow(stable_buildings, interpolation='nearest')
+    plot_stable_buildings_v2(axs[2], img)
+    plt.suptitle(aoi_id)
+    for ax in axs:
+        ax.set_axis_off()
+    plt.axis('off')
+    plt.show()
+
+
+def create_building_change_masks(aoi_id: str):
+    metadata = pd.read_csv(METADATA_FILE)
+    row = metadata[metadata['aoi_id'] == aoi_id]
+    ref_year = int(row['year'])
+    ref_month = int(row['month'])
+    ref_date = ref_year * 12 + ref_month
+
+    period_months = 12
+    offset = period_months // 2
+
+    # get dates of images within 1 year period
+    dates = get_available_dates(aoi_id)
+    dates = [d for d in dates if ref_date - offset <= (d[0] * 12 + d[1]) < ref_date + offset]
+
+    mask_path = SN7_PATH / aoi_id / 'masks'
+    shape = (*get_shape(aoi_id), len(dates))
+    masks = np.zeros(shape)
+
+    for i, date in enumerate(dates):
+        year, month = date
+        base_name = create_base_name(aoi_id, year, month)
+        file = mask_path / f'{base_name}_mask.tif'
+        mask, _, _ = read_tif(file)
+        masks[:, :, i] = mask.squeeze()
+
+    # TODO: could be all masked
+    stable_buildings = np.all(masks, axis=-1).astype('uint8')
+
+    # non stable buildings
+    only_buildings = masks.copy()
+    only_buildings[only_buildings == 2] = 0
+    all_buildings = np.any(only_buildings, axis=-1).astype('uint8')
+
+    change = all_buildings + stable_buildings
+    output_file = SN7_PATH / aoi_id / 'auxiliary' / f'change.tif'
+    transform, crs = get_geo(aoi_id)
+    write_tif(output_file, np.expand_dims(change, axis=-1), transform, crs)
 
 
 if __name__ == '__main__':
 
-    ee.Initialize()
+    # ee.Initialize()
 
-    metadata_file = SPACENET7_PATH.parent / 'sn7_metadata_v3.csv'
-    construct_reference_buildings_file(metadata_file)
+    test_aoi = 'L15-0571E-1075N_2287_3888_13'
+
+    for aoi_id in tqdm(get_all_aoi_ids()):
+        # show_stable_building_pixels(aoi_id)
+        # create_label_masks(aoi_id)
+        create_building_change_masks(aoi_id)
+    # show_stable_building_pixels(test_aoi)
+    metadata_file = SN7_PATH.parent / 'sn7_metadata_v3.csv'
+    # construct_reference_buildings_file(metadata_file)
 
     # construct_buildings_file(metadata_file)
     # construct_samples_file(metadata_file)

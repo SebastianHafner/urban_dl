@@ -1,0 +1,20 @@
+_BASE_: "base_v3.yaml"
+DEBUG: False
+THRESHOLDS:
+  TRAIN: 0.0
+  VALIDATION: 0.0
+
+MODEL:
+  TYPE: 'unet'
+  IN_CHANNELS: 4
+
+DATALOADER:
+  MODE: 'sar'
+  SENTINEL1_BANDS: ['VV_mean', 'VV_stdDev', 'VH_mean', 'VH_stdDev']
+
+DATASETS:
+  PATH: '/storage/shafner/urban_extraction/urban_extraction_dataset/'
+  SITES:
+    TRAINING: ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
+               'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
+               'charlston', 'seattle', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson']

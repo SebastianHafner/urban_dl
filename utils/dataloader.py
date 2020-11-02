@@ -241,6 +241,7 @@ class InferenceDataset(torch.utils.data.Dataset):
         self.cfg = cfg
         self.s1_file = s1_file
         self.s2_file = s2_file
+        assert(s1_file.exists() and s2_file.exists())
 
         self.transform = transforms.Compose([Numpy2Torch()])
 
@@ -256,23 +257,23 @@ class InferenceDataset(torch.utils.data.Dataset):
 
         # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
         if s1_bands is None:
-            s1_bands = ['VV', 'VH']
+            s1_bands = ['VV_mean', 'VV_stdDev', 'VH_mean', 'VH_stdDev']
         selected_features_sentinel1 = cfg.DATALOADER.SENTINEL1_BANDS
         self.s1_feature_selection = self._get_feature_selection(s1_bands, selected_features_sentinel1)
-
         if s2_bands is None:
-            s2_bands = ['B2', 'B3', 'B4', 'B8', 'B11', 'B12']
+            s2_bands = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12']
         selected_features_sentinel2 = cfg.DATALOADER.SENTINEL2_BANDS
         self.s2_feature_selection = self._get_feature_selection(s2_bands, selected_features_sentinel2)
 
         # loading image
-        if not any(self.s1_feature_selection):  # only sentinel 2 features
+        mode = self.cfg.DATALOADER.MODE
+        if mode == 'optical':
             img, _, _ = read_tif(self.s2_file)
             img = img[:, :, self.s2_feature_selection]
-        elif not any(self.s2_feature_selection):  # only sentinel 1 features
+        elif mode == 'sar':
             img, _, _ = read_tif(self.s1_file)
             img = img[:, :, self.s1_feature_selection]
-        else:  # sentinel 1 and sentinel 2 features
+        else:  # fusion
             s1_img, _, _ = read_tif(self.s1_file)
             s1_img = s1_img[:, :, self.s1_feature_selection]
             s2_img, _, _ = read_tif(self.s2_file)
@@ -318,12 +319,17 @@ class InferenceDataset(torch.utils.data.Dataset):
         img_patch = self.img[i_start:i_end, j_start:j_end, ]
         return np.nan_to_num(img_patch).astype(np.float32)
 
-    def _get_feature_selection(self, features, selection):
+    @ staticmethod
+    def _get_feature_selection(features, selection):
         feature_selection = [False for _ in range(len(features))]
         for feature in selection:
             i = features.index(feature)
             feature_selection[i] = True
         return feature_selection
+
+    def get_mask(self, data_type = 'uint8') -> np.ndarray:
+        mask = np.empty(shape=(self.n_rows * self.patch_size, self.n_cols * self.patch_size, 1), dtype=data_type)
+        return mask
 
     def __len__(self):
         return self.length

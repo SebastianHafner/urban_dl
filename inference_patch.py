@@ -13,8 +13,7 @@ NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
 
 
 def run_inference(config_name: str, checkpoint: int):
-    cfg_file = CONFIG_PATH / f'{config_name}.yaml'
-    cfg = config.load_cfg(cfg_file)
+    cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
 
     # loading network
     net_file = NETWORK_PATH / f'{config_name}_{checkpoint}.pkl'

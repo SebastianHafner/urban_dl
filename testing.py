@@ -474,7 +474,7 @@ def plot_reference_comparison(start_index: int = 0):
 
 if __name__ == '__main__':
     # qualitative_testing('sar', 100, save_plots=False)
-    advanced_qualitative_testing('arid_optical', 100, save_plots=True)
+    advanced_qualitative_testing('fusion_color', 100, save_plots=False)
     # plot_reference_comparison(40)
     # out_of_distribution_check(60, save_plots=False)
     # out_of_distribution_correlation('optical', 100, save_plot=False)
@@ -510,5 +510,5 @@ if __name__ == '__main__':
     # qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
     #                                [100, 100, 100, 100], save_plots=True)
 
-    # qualitative_testing_comparison(['sar', 'optical'], [100, 100], save_plots=True)
+    # qualitative_testing_comparison(['fusion', 'fusion_color'], [100, 100], save_plots=False)
 

@@ -2,9 +2,11 @@ from pathlib import Path
 import torch
 from networks.network_loader import load_network
 from experiment_manager.config import config
-from utils.dataloader import InferenceDataset
-from utils.geotiff import write_tif
+from utils.dataloader import InferenceDataset, UrbanExtractionDataset
+from utils.geotiff import write_tif, read_tif
 from tqdm import tqdm
+import numpy as np
+import torchvision.transforms.functional as TF
 
 ROOT_PATH = Path('/storage/shafner/urban_extraction')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
@@ -57,7 +59,7 @@ def run_inference(config_name: str, checkpoint: int, s1_file: Path, s2_file: Pat
 
 if __name__ == '__main__':
 
-    config_name = 'fusion'
+    config_name = 'fusion_color'
     checkpoint = 100
     roi_id = 'lagos'
 

@@ -1,0 +1,10 @@
+_BASE_: "optical.yaml"
+DEBUG: False
+
+THRESHOLDS:
+  TRAIN: 0.0
+  VALIDATION: 0.0
+
+AUGMENTATION:
+  COLOR_SHIFT: False
+  GAMMA_CORRECTION: True

@@ -15,6 +15,9 @@ def compose_transformations(cfg):
     if cfg.AUGMENTATION.COLOR_SHIFT:
         transformations.append(ColorShift())
 
+    if cfg.AUGMENTATION.GAMMA_CORRECTION:
+        transformations.append(GammaCorrection())
+
     transformations.append(Numpy2Torch())
 
     return transforms.Compose(transformations)
@@ -67,3 +70,17 @@ class ColorShift(object):
         factors = np.random.uniform(self.min_factor, self.max_factor, img.shape[-1])
         img_rescaled = np.clip(img * factors[np.newaxis, np.newaxis, :], 0, 1).astype(np.float32)
         return img_rescaled, label
+
+
+class GammaCorrection(object):
+    def __init__(self, gain: float = 1, min_gamma: float = 0.25, max_gamma: float = 2):
+        self.gain = gain
+        self.min_gamma = min_gamma
+        self.max_gamma = max_gamma
+
+    def __call__(self, args):
+        img, label = args
+        gamma = np.random.uniform(self.min_gamma, self.max_gamma, img.shape[-1])
+        img_gamma_corrected = np.clip(np.power(img,gamma[np.newaxis, np.newaxis, :]), 0, 1).astype(np.float32)
+        return img_gamma_corrected, label
+

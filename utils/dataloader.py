@@ -250,7 +250,7 @@ class InferenceDataset(torch.utils.data.Dataset):
         self.height, self.width, _ = arr.shape
 
         self.patch_size = patch_size
-        self.rf = 8
+        self.rf = 128
         self.n_rows = (self.height - self.rf) // patch_size
         self.n_cols = (self.width - self.rf) // patch_size
         self.length = self.n_rows * self.n_cols

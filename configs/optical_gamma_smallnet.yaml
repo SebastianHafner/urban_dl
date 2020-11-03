@@ -1,0 +1,13 @@
+_BASE_: "optical.yaml"
+DEBUG: False
+
+THRESHOLDS:
+  TRAIN: 0.0
+  VALIDATION: 0.0
+
+MODEL:
+  TOPOLOGY: [64, 128,]
+
+AUGMENTATION:
+  COLOR_SHIFT: False
+  GAMMA_CORRECTION: True

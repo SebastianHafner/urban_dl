@@ -3,7 +3,6 @@ from torchvision import transforms
 import numpy as np
 
 
-
 def compose_transformations(cfg):
     transformations = []
 
@@ -12,6 +11,9 @@ def compose_transformations(cfg):
 
     if cfg.AUGMENTATION.RANDOM_ROTATE:
         transformations.append(RandomRotate())
+
+    if cfg.AUGMENTATION.COLOR_SHIFT:
+        transformations.append(ColorShift())
 
     transformations.append(Numpy2Torch())
 
@@ -53,3 +55,15 @@ class RandomRotate(object):
         img = np.rot90(img, k, axes=(0, 1)).copy()
         label = np.rot90(label, k, axes=(0, 1)).copy()
         return img, label
+
+
+class ColorShift(object):
+    def __init__(self, min_factor: float = 0.5, max_factor: float = 1.5):
+        self.min_factor = min_factor
+        self.max_factor = max_factor
+
+    def __call__(self, args):
+        img, label = args
+        factors = np.random.uniform(self.min_factor, self.max_factor, img.shape[-1])
+        img_rescaled = np.clip(img * factors[np.newaxis, np.newaxis, :], 0, 1).astype(np.float32)
+        return img_rescaled, label

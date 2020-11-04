@@ -1,12 +1,12 @@
 _BASE_: "sar.yaml"
-DEBUG: False
+DEBUG: True
 
 THRESHOLDS:
-  TRAIN: 0.43
-  VALIDATION: 0.40
+  TRAIN: 0.0
+  VALIDATION: 0.0
 
 MODEL:
-  TOPOLOGY: [64, 128,]
+  TYPE: 'simplenet1'
 
 AUGMENTATION:
   COLOR_SHIFT: False

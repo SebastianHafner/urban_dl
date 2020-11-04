@@ -81,8 +81,9 @@ def run_inference_sn7(config_name: str, checkpoint: int):
 
         write_tif(file, prob, transform, crs)
 
+
 if __name__ == '__main__':
-    config_name = 'sar'
+    config_name = 'sar_gamma_smallnet'
     checkpoint = 100
-    # run_inference(config_name, checkpoint)
+    run_inference(config_name, checkpoint)
     run_inference_sn7(config_name, checkpoint)

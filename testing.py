@@ -510,5 +510,5 @@ if __name__ == '__main__':
     # qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
     #                                [100, 100, 100, 100], save_plots=True)
 
-    qualitative_testing_comparison(['sar_gamma_smallnet', 'sar'], [100, 100], save_plots=False)
+    qualitative_testing_comparison(['sar_gamma_smallnet', 'sarpredfusion_gamma_smallnet'], [100, 100], save_plots=False)
 

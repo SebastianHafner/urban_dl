@@ -107,6 +107,8 @@ def train_net(net, cfg):
             positive_pixels_set.extend(image_weight.cpu().numpy())
 
             global_step += 1
+            if cfg.DEBUG:
+                break
             # end of batch
 
         stop = timeit.default_timer()

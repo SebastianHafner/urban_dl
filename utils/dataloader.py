@@ -62,6 +62,14 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         else:  # fusion baby!!!
             s1_img, _, _ = self._get_sentinel1_data(site, patch_id)
             s2_img, _, _ = self._get_sentinel2_data(site, patch_id)
+
+            if self.cfg.DATALOADER.FUSION_DROPOUT and not self.no_augmentations:
+                dropout_layer = np.random.randint(0, 3)
+                if dropout_layer == 1:
+                    s1_img[...] = 0
+                if dropout_layer == 2:
+                    s2_img[...] = 0
+
             img = np.concatenate([s1_img, s2_img], axis=-1)
 
         aux_inputs = self.cfg.DATALOADER.AUXILIARY_INPUTS
@@ -166,6 +174,7 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
         else:  # fusion baby!!!
             s1_img, _, _ = self._get_sentinel1_data(aoi_id)
             s2_img, _, _ = self._get_sentinel2_data(aoi_id)
+
             img = np.concatenate([s1_img, s2_img], axis=-1)
 
         aux_inputs = self.cfg.DATALOADER.AUXILIARY_INPUTS

@@ -134,6 +134,131 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
 
 # dataset for urban extraction with building footprints
+class MTUrbanExtractionDataset(torch.utils.data.Dataset):
+
+    def __init__(self, cfg, dataset: str, include_projection: bool = False, no_augmentations: bool = False):
+        super().__init__()
+
+        self.cfg = cfg
+        self.dataset = dataset
+        self.root_dir = Path(cfg.DATASETS.PATH)
+
+        self.dataset = dataset
+        if dataset == 'training':
+            self.sites = cfg.DATASETS.SITES.TRAINING
+        elif dataset == 'validation':
+            self.sites = cfg.DATASETS.SITES.VALIDATION
+        else:  # used to load only 1 city passed as dataset
+            self.sites = [dataset]
+
+        self.no_augmentations = no_augmentations
+        self.transform = transforms.Compose([Numpy2Torch()]) if no_augmentations else compose_transformations(cfg)
+
+        self.samples = []
+        for site in self.sites:
+            samples_file = self.root_dir / site / 'samples.json'
+            metadata = load_json(samples_file)
+            self.samples += metadata['samples']
+            s1_bands = metadata['sentinel1_features']
+            s2_bands = metadata['sentinel2_features']
+        self.length = len(self.samples)
+
+        self.include_projection = include_projection
+
+        # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
+        self.s1_indices = self._get_indices(s1_bands, cfg.DATALOADER.SENTINEL1_BANDS)
+        self.s2_indices = self._get_indices(s2_bands, cfg.DATALOADER.SENTINEL2_BANDS)
+
+    def __getitem__(self, index):
+
+        # loading metadata of sample
+        sample = self.samples[index]
+
+        site = sample['site']
+        patch_id = sample['patch_id']
+
+        # loading images
+        mode = self.cfg.DATALOADER.MODE
+        if mode == 'optical':
+            img, _, _ = self._get_sentinel2_data(site, patch_id)
+        elif mode == 'sar':
+            img, _, _ = self._get_sentinel1_data(site, patch_id)
+        else:  # fusion baby!!!
+            s1_img, _, _ = self._get_sentinel1_data(site, patch_id)
+            s2_img, _, _ = self._get_sentinel2_data(site, patch_id)
+
+            if self.cfg.DATALOADER.FUSION_DROPOUT and not self.no_augmentations:
+                dropout_layer = np.random.randint(0, 3)
+                if dropout_layer == 1:
+                    s1_img[...] = 0
+                if dropout_layer == 2:
+                    s2_img[...] = 0
+
+            img = np.concatenate([s1_img, s2_img], axis=-1)
+
+        aux_inputs = self.cfg.DATALOADER.AUXILIARY_INPUTS
+        for aux_input in aux_inputs:
+            aux_img, _, _ = self._get_auxiliary_data(aux_input, site, patch_id)
+            img = np.concatenate([aux_img, img], axis=-1)
+
+        label, geotransform, crs = self._get_label_data(site, patch_id)
+        img, label = self.transform((img, label))
+
+        item = {
+            'x_student': img,
+            'x_teacher': img,
+            'y': label,
+            'labeled': np.random.randint(0, 2),
+            'site': site,
+            'patch_id': patch_id,
+            'image_weight': np.float(sample['img_weight'])
+        }
+
+        if self.include_projection:
+            item['transform'] = geotransform
+            item['crs'] = crs
+
+        return item
+
+    def _get_sentinel1_data(self, site, patch_id):
+        file = self.root_dir / site / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(file)
+        img = img[:, :, self.s1_indices]
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_sentinel2_data(self, site, patch_id):
+        file = self.root_dir / site / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(file)
+        img = img[:, :, self.s2_indices]
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_auxiliary_data(self, aux_input, site, patch_id):
+        file = self.root_dir / site / aux_input / f'{aux_input}_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(file)
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_label_data(self, site, patch_id):
+        label = self.cfg.DATALOADER.LABEL
+        threshold = self.cfg.DATALOADER.LABEL_THRESH
+
+        label_file = self.root_dir / site / label / f'{label}_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(label_file)
+        if threshold >= 0:
+            img = img > threshold
+
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    @staticmethod
+    def _get_indices(bands, selection):
+        return [bands.index(band) for band in selection]
+
+    def __len__(self):
+        return self.length
+
+    def __str__(self):
+        return f'Dataset with {self.length} samples across {len(self.sites)} sites.'
+
+# dataset for urban extraction with building footprints
 class SpaceNet7Dataset(torch.utils.data.Dataset):
 
     def __init__(self, cfg):

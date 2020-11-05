@@ -43,8 +43,15 @@ def train_mean_teacher(net, cfg):
     supervised_criterion = criterion_from_cfg(cfg)
 
     def mt_criterion(student_net_out, teacher_net_out, target, is_labeled):
+
         supervised_loss = supervised_criterion(student_net_out[is_labeled, ], target[is_labeled])
-        consistency_loss = 0
+
+        student_probs = torch.sigmoid(student_net_out)
+        teacher_probs = torch.sigmoid(teacher_net_out)
+
+        # mean square error
+        consistency_loss = torch.div(torch.sum(torch.pow(student_probs - teacher_probs, 2)), torch.numel(student_probs))
+
         return supervised_loss + consistency_loss
 
     if torch.cuda.device_count() > 1:
@@ -52,7 +59,7 @@ def train_mean_teacher(net, cfg):
         net = nn.DataParallel(net)
 
     student_net = net
-    teacher_net = create_teacher_net(student_net)
+    teacher_net = create_teacher_net(student_net, cfg)
     student_net.to(device)
     teacher_net.to(device)
 
@@ -107,8 +114,8 @@ def train_mean_teacher(net, cfg):
             # update teacher after each step
             update_teacher_net(student_net, teacher_net, alpha=1, global_step=global_step)
 
-            if cfg.DEBUG:
-                break
+            # if cfg.DEBUG:
+            #     break
             # end of batch
 
         stop = timeit.default_timer()
@@ -121,15 +128,16 @@ def train_mean_teacher(net, cfg):
                 'avg_loss': np.mean(loss_set),
                 'gpu_memory': max_mem,
                 'time': time_per_epoch,
-                'total_positive_pixels': np.mean(positive_pixels_set),
                 'step': global_step,
             })
 
         # evaluation on sample of training and validation set after ever epoch
         thresholds = torch.linspace(0, 1, 101)
-        train_maxF1, train_argmaxF1 = model_eval(net, cfg, device, thresholds, 'training', epoch, global_step)
-        val_f1, val_argmaxF1 = model_eval(net, cfg, device, thresholds, 'validation', epoch, global_step,
+        train_maxF1, train_argmaxF1 = model_eval(student_net, teacher_net, cfg, device, thresholds, 'training', epoch, global_step)
+        val_f1, val_argmaxF1 = model_eval(student_net, teacher_net, cfg, device, thresholds, 'validation', epoch, global_step,
                                           specific_index=train_argmaxF1)
+
+        # TODO: add evaluation on test set
 
         # updating best validation f1 score
         best_val_f1 = val_f1 if val_f1 > best_val_f1 else val_f1
@@ -150,7 +158,7 @@ def image_sampling_weight(samples_metadata):
 
 # specific threshold creates an additional log for that threshold
 # can be used to apply best training threshold to validation set
-def model_eval(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: int, step: int,
+def model_eval(net, net_ema, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: int, step: int,
                max_samples: int = 1000, specific_index: int = None):
     y_true_set = []
     y_pred_set = []
@@ -167,7 +175,7 @@ def model_eval(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch:
         measurer.add_sample(y_true, y_pred)
 
     dataset = MTUrbanExtractionDataset(cfg=cfg, dataset=run_type, no_augmentations=True)
-    inference_loop(net, cfg, device, evaluate, max_samples=max_samples, dataset=dataset)
+    inference_loop(net, net_ema, cfg, device, evaluate, max_samples=max_samples, dataset=dataset)
 
     print(f'Computing {run_type} F1 score ', end=' ', flush=True)
 
@@ -208,10 +216,12 @@ def model_eval(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch:
     return f1.item(), argmax_f1.item()
 
 
-def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=999999999,
+def inference_loop(net, ema_net, cfg, device, callback=None, batch_size=1, max_samples=999999999,
                    dataset=None, callback_include_x=False):
     net.to(device)
+    ema_net.to(device)
     net.eval()
+    ema_net.eval()
 
     # reset the generators
     num_workers = 0 if cfg.DEBUG else cfg.DATALOADER.NUM_WORKER
@@ -221,12 +231,14 @@ def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=99
     dataset_length = np.minimum(len(dataset), max_samples)
     with torch.no_grad():
         for step, batch in enumerate(dataloader):
-            imgs = batch['x'].to(device)
+            imgs = batch['x_student'].to(device)
             y_label = batch['y'].to(device)
 
             y_pred = net(imgs)
+            y_pred_ema = ema_net(imgs)
 
             y_pred = torch.sigmoid(y_pred)
+            y_pred_ema = torch.sigmoid(y_pred_ema)
 
             if callback:
                 if callback_include_x:
@@ -264,13 +276,13 @@ def update_teacher_net(net, ema_net, alpha, global_step):
     return ema_net
 
 
-def create_teacher_net(net):
-    net_copy = type(net)()  # get a new instance
+def create_teacher_net(net, cfg):
+    net_copy = type(net)(cfg)  # get a new instance
     net_copy.load_state_dict(net.state_dict())  # copy weights and stuff
     # TODO: not sure about this one
-    for param in net.parameters():
+    for param in net_copy.parameters():
         param.detach_()
-    return net
+    return net_copy
 
 
 if __name__ == '__main__':

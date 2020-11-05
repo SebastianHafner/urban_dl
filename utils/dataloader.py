@@ -208,7 +208,7 @@ class MTUrbanExtractionDataset(torch.utils.data.Dataset):
             'x_student': img,
             'x_teacher': img,
             'y': label,
-            'labeled': np.random.randint(0, 2),
+            'is_labeled': bool(np.random.randint(0, 2)),
             'site': site,
             'patch_id': patch_id,
             'image_weight': np.float(sample['img_weight'])

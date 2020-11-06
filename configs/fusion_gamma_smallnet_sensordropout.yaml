@@ -2,8 +2,8 @@ _BASE_: "fusion.yaml"
 DEBUG: False
 
 THRESHOLDS:
-  TRAIN: 0.00
-  VALIDATION: 0.00
+  TRAIN: 0.25
+  VALIDATION: 0.16
 
 MODEL:
   TOPOLOGY: [64, 128,]

@@ -1,5 +1,5 @@
 _BASE_: "sar.yaml"
-DEBUG: True
+DEBUG: False
 
 THRESHOLDS:
   TRAIN: 0.0

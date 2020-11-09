@@ -34,46 +34,53 @@ def crop_patch(file: Path, patch_size: int):
         pass
 
 
-def preprocess(path: Path, site: str, patch_size: int = 256, dsm: bool = False):
+def preprocess(path: Path, site: str, labels_exist: bool, patch_size: int = 256):
 
     print(f'preprocessing {site}')
 
-    buildings_path = path / 'buildings'
-    n = len([f for f in buildings_path.glob('**/*')])
+    s1_path = path / site / 'sentinel1'
+    patches = [f.stem.split('_')[-1] for f in s1_path.glob('**/*')]
 
     samples = []
-    for i in tqdm(range(n)):
-        patch_id = f'patch{i + 1}'
+    for patch_id in tqdm(patches):
 
-        buildings_file = path / 'buildings' / f'buildings_{site}_{patch_id}.tif'
-        sentinel1_file = path / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
-        sentinel2_file = path / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
-        files = [buildings_file, sentinel1_file, sentinel2_file]
-        if dsm:
-            dsm_file = path / 'dsm' / f'dsm_{site}_{patch_id}.tif'
-            files.append(dsm_file)
+        sentinel1_file = path / site / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
+        sentinel2_file = path / site / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
+        files = [sentinel1_file, sentinel2_file]
+        if labels_exist:
+            buildings_file = path / site / 'buildings' / f'buildings_{site}_{patch_id}.tif'
+            files.append(buildings_file)
+            img_weight = get_image_weight(buildings_file)
+        else:
+            img_weight = -1
 
+        valid = True
         for file in files:
-            crop_patch(file, patch_size)
             if has_only_zeros(file):
                 raise Exception(f'only zeros {file.name}')
+            arr, transform, crs = read_tif(file)
+            i, j, _ = arr.shape
+            if i != patch_size or j != patch_size:
+                valid = False
 
         sample = {
             'site': site,
             'patch_id': patch_id,
-            'img_weight': get_image_weight(buildings_file)
+            'label_exists': labels_exist,
+            'img_weight': img_weight
         }
-        samples.append(sample)
+        if valid:
+            samples.append(sample)
 
     # writing data to json file
     data = {
         'label': 'buildings',
         'site': site,
-        'sentinel1_features': ['VV_mean', 'VV_stdDev', 'VH_mean', 'VH_stdDev'],
+        'sentinel1_features': ['VV', 'VH'],
         'sentinel2_features': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'],
         'samples': samples
     }
-    dataset_file = path / f'samples.json'
+    dataset_file = path / site / f'samples.json'
     with open(str(dataset_file), 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
@@ -90,16 +97,20 @@ def sites_split(sites: list, train_fraction: float):
 if __name__ == '__main__':
 
     # dataset_path = Path('C:/Users/shafner/urban_extraction/data/dummy_data')
-    dataset_path = Path('/storage/shafner/urban_extraction/urban_extraction_dataset/')
+    dataset_path = Path('/storage/shafner/urban_extraction/urban_extraction_dataset_version4/')
 
-    training = ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
-                'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
-                'charlston', 'seattle', 'daressalam', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson']
-    validation = ['houston', 'sanfrancisco', 'vancouver', 'newyork', 'calgary', 'kampala']
-    all_sites = training + validation
-    for site in all_sites:
-        path = dataset_path / site
-        preprocess(path, site, 256, dsm=False)
+    labeled_sites = ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
+                     'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
+                     'charlston', 'seattle', 'daressalam', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson',
+                     'sanfrancisco', 'vancouver', 'calgary', 'kampala']
+    unlabeled_sites = ['beijing', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'rodejanairo',
+                       'shanghai', 'sidney', 'stockholm']
+
+    all_sites = labeled_sites + unlabeled_sites
+    for i, site in enumerate(all_sites):
+        labeled = True if site in labeled_sites else False
+        if i > 28:
+            preprocess(dataset_path, site, labels_exist=labeled, patch_size=256)
 
     # sites_split(northamerican_sites, 0.8)
 

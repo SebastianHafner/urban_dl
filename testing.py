@@ -479,7 +479,7 @@ if __name__ == '__main__':
     # out_of_distribution_check(60, save_plots=False)
     # out_of_distribution_correlation('optical', 100, save_plot=False)
     # quantitative_testing('optical_gamma_smallnet', 100, save_output=True)
-    # quantitative_testing('optical_baseline_na', 100, save_output=True)
+    quantitative_testing('fusion_gamma_smallnet_sensordropout', 100, save_output=True)
     # quantitative_testing('sar_baseline_na', 100, save_output=True)
 
     # not including africa experiment
@@ -510,5 +510,5 @@ if __name__ == '__main__':
     # qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
     #                                [100, 100, 100, 100], save_plots=True)
 
-    qualitative_testing_comparison(['sar_gamma_smallnet', 'sarpredfusion_gamma_smallnet'], [100, 100], save_plots=False)
+    # qualitative_testing_comparison(['fusion_gamma_smallnet', 'fusion_gamma_smallnet_sensordropout'], [100, 100], save_plots=False)
 

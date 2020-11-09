@@ -158,7 +158,7 @@ def image_sampling_weight(samples_metadata):
 
 # specific threshold creates an additional log for that threshold
 # can be used to apply best training threshold to validation set
-def model_eval(net, net_ema, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: int, step: int,
+def model_eval(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: int, step: int,
                max_samples: int = 1000, specific_index: int = None):
     y_true_set = []
     y_pred_set = []
@@ -175,7 +175,7 @@ def model_eval(net, net_ema, cfg, device, thresholds: torch.Tensor, run_type: st
         measurer.add_sample(y_true, y_pred)
 
     dataset = MTUrbanExtractionDataset(cfg=cfg, dataset=run_type, no_augmentations=True)
-    inference_loop(net, net_ema, cfg, device, evaluate, max_samples=max_samples, dataset=dataset)
+    inference_loop(net, cfg, device, evaluate, max_samples=max_samples, dataset=dataset)
 
     print(f'Computing {run_type} F1 score ', end=' ', flush=True)
 
@@ -229,21 +229,25 @@ def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=99
     dataset_length = np.minimum(len(dataset), max_samples)
     with torch.no_grad():
         for step, batch in enumerate(dataloader):
-            # TODO:
-            imgs = batch['x_student'].to(device)
-            y_label = batch['y'].to(device)
+            is_labeled = batch['is_labeled']
+            # ensuring that at least one sample in batch is labeled
+            if torch.sum(is_labeled) > 0:
+                imgs = batch['x_student'].to(device)
+                imgs = imgs[is_labeled, ]
+                y_label = batch['y'].to(device)
+                y_label = y_label[is_labeled, ]
 
-            y_pred = net(imgs)
-            y_pred = torch.sigmoid(y_pred)
+                y_pred = net(imgs)
+                y_pred = torch.sigmoid(y_pred)
 
-            if callback:
-                if callback_include_x:
-                    callback(imgs, y_label, y_pred)
-                else:
-                    callback(y_label, y_pred)
+                if callback:
+                    if callback_include_x:
+                        callback(imgs, y_label, y_pred)
+                    else:
+                        callback(y_label, y_pred)
 
-            if (max_samples is not None) and step >= max_samples:
-                break
+                if step >= dataset_length:
+                    break
 
 
 def gpu_stats():
@@ -267,6 +271,7 @@ def setup(args):
 def update_teacher_net(net, ema_net, alpha, global_step):
     # Use the true average until the exponential average is more correct
     alpha = min(1 - 1 / (global_step + 1), alpha)
+    # TODO: fix warning due to add_
     for ema_param, param in zip(ema_net.parameters(), net.parameters()):
         ema_param.data.mul_(alpha).add_(1 - alpha, param.data)
     return ema_net
@@ -302,7 +307,7 @@ if __name__ == '__main__':
     if not cfg.DEBUG:
         wandb.init(
             name=cfg.NAME,
-            project='mean_teacher',
+            project='urban_extraction_version4',
             tags=['run', 'urban', 'extraction', 'segmentation', ],
         )
 

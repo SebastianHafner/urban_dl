@@ -176,15 +176,16 @@ class MTUrbanExtractionDataset(torch.utils.data.Dataset):
 
         site = sample['site']
         patch_id = sample['patch_id']
+        label_exists = sample['label_exists']
 
         # loading images
         mode = self.cfg.DATALOADER.MODE
         if mode == 'optical':
-            img, _, _ = self._get_sentinel2_data(site, patch_id)
+            img, geotransform, crs = self._get_sentinel2_data(site, patch_id)
         elif mode == 'sar':
-            img, _, _ = self._get_sentinel1_data(site, patch_id)
+            img, geotransform, crs = self._get_sentinel1_data(site, patch_id)
         else:  # fusion baby!!!
-            s1_img, _, _ = self._get_sentinel1_data(site, patch_id)
+            s1_img, geotransform, crs = self._get_sentinel1_data(site, patch_id)
             s2_img, _, _ = self._get_sentinel2_data(site, patch_id)
 
             if self.cfg.DATALOADER.FUSION_DROPOUT and not self.no_augmentations:
@@ -201,14 +202,18 @@ class MTUrbanExtractionDataset(torch.utils.data.Dataset):
             aux_img, _, _ = self._get_auxiliary_data(aux_input, site, patch_id)
             img = np.concatenate([aux_img, img], axis=-1)
 
-        label, geotransform, crs = self._get_label_data(site, patch_id)
+        if label_exists:
+            label, _, _ = self._get_label_data(site, patch_id)
+        else:
+            label = np.zeros((img.shape[0], img.shape[1], 1), dtype=np.float32)
+
         img, label = self.transform((img, label))
 
         item = {
             'x_student': img,
             'x_teacher': img,
             'y': label,
-            'is_labeled': bool(np.random.randint(0, 2)),
+            'is_labeled': label_exists,
             'site': site,
             'patch_id': patch_id,
             'image_weight': np.float(sample['img_weight'])

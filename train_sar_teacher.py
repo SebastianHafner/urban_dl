@@ -42,6 +42,18 @@ def train_mean_teacher(net, cfg):
     optimizer = optim.Adam(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.0005)
     supervised_criterion = criterion_from_cfg(cfg)
 
+    def mt_criterion(student_net_out, teacher_net_out, target, is_labeled):
+
+        supervised_loss = supervised_criterion(student_net_out[is_labeled,], target[is_labeled])
+
+        student_probs = torch.sigmoid(student_net_out)
+        teacher_probs = torch.sigmoid(teacher_net_out)
+
+        # mean square error
+        consistency_loss = torch.div(torch.sum(torch.pow(student_probs - teacher_probs, 2)), torch.numel(student_probs))
+
+        return supervised_loss + consistency_loss
+
     if torch.cuda.device_count() > 1:
         print(torch.cuda.device_count(), " GPUs!")
         net = nn.DataParallel(net)
@@ -74,9 +86,8 @@ def train_mean_teacher(net, cfg):
         print(f'Starting epoch {epoch + 1}/{epochs}.')
 
         start = timeit.default_timer()
+        epoch_loss = 0
         loss_set = []
-        supervised_loss_set = []
-        consistency_loss_set = []
 
         student_net.train()
 
@@ -91,30 +102,20 @@ def train_mean_teacher(net, cfg):
             output_student = student_net(x_student)
             output_teacher = teacher_net(x_teacher)
 
-            supervised_loss = supervised_criterion(output_student[is_labeled,], y_gts[is_labeled])
-
-            student_probs = torch.sigmoid(output_student)
-            teacher_probs = torch.sigmoid(output_teacher)
-
-            # mean square error
-            consistency_loss = torch.div(torch.sum(torch.pow(student_probs - teacher_probs, 2)),
-                                         torch.numel(student_probs))
-
-            loss = supervised_loss + consistency_loss
+            loss = mt_criterion(output_student, output_teacher, y_gts, is_labeled)
+            epoch_loss += loss.item()
             loss.backward()
             optimizer.step()
 
             loss_set.append(loss.item())
-            supervised_loss_set.append(supervised_loss.item())
-            consistency_loss_set.append(consistency_loss.item())
 
             global_step += 1
 
             # update teacher after each step
             update_teacher_net(student_net, teacher_net, alpha=1, global_step=global_step)
 
-            if cfg.DEBUG:
-                break
+            # if cfg.DEBUG:
+            #     break
             # end of batch
 
         stop = timeit.default_timer()
@@ -123,8 +124,7 @@ def train_mean_teacher(net, cfg):
 
         if not cfg.DEBUG:
             wandb.log({
-                'avg_supervised_loss': np.mean(supervised_loss_set),
-                'avg_consistency_loss': np.mean(consistency_loss_set),
+                'loss': loss.item(),
                 'avg_loss': np.mean(loss_set),
                 'gpu_memory': max_mem,
                 'time': time_per_epoch,
@@ -133,8 +133,10 @@ def train_mean_teacher(net, cfg):
 
         # evaluation on sample of training and validation set after ever epoch
         thresholds = torch.linspace(0, 1, 101)
-        train_maxF1, train_argmaxF1 = model_eval(teacher_net, cfg, device, thresholds, 'training', epoch, global_step)
-        val_f1, val_argmaxF1 = model_eval(teacher_net, cfg, device, thresholds, 'validation', epoch, global_step,
+        train_maxF1, train_argmaxF1 = model_eval(student_net, teacher_net, cfg, device, thresholds, 'training', epoch,
+                                                 global_step)
+        val_f1, val_argmaxF1 = model_eval(student_net, teacher_net, cfg, device, thresholds, 'validation', epoch,
+                                          global_step,
                                           specific_index=train_argmaxF1)
 
         # TODO: add evaluation on test set
@@ -145,7 +147,7 @@ def train_mean_teacher(net, cfg):
         if epoch in save_checkpoints:
             print(f'saving network', flush=True)
             net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}_{epoch}.pkl'
-            torch.save(teacher_net.state_dict(), net_file)
+            torch.save(net.state_dict(), net_file)
 
 
 def image_sampling_weight(samples_metadata):
@@ -216,10 +218,12 @@ def model_eval(net, net_ema, cfg, device, thresholds: torch.Tensor, run_type: st
     return f1.item(), argmax_f1.item()
 
 
-def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=999999999,
+def inference_loop(net, ema_net, cfg, device, callback=None, batch_size=1, max_samples=999999999,
                    dataset=None, callback_include_x=False):
     net.to(device)
+    ema_net.to(device)
     net.eval()
+    ema_net.eval()
 
     # reset the generators
     num_workers = 0 if cfg.DEBUG else cfg.DATALOADER.NUM_WORKER
@@ -229,12 +233,14 @@ def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=99
     dataset_length = np.minimum(len(dataset), max_samples)
     with torch.no_grad():
         for step, batch in enumerate(dataloader):
-            # TODO:
             imgs = batch['x_student'].to(device)
             y_label = batch['y'].to(device)
 
             y_pred = net(imgs)
+            y_pred_ema = ema_net(imgs)
+
             y_pred = torch.sigmoid(y_pred)
+            y_pred_ema = torch.sigmoid(y_pred_ema)
 
             if callback:
                 if callback_include_x:
@@ -302,7 +308,7 @@ if __name__ == '__main__':
     if not cfg.DEBUG:
         wandb.init(
             name=cfg.NAME,
-            project='mean_teacher',
+            project='urban_extraction',
             tags=['run', 'urban', 'extraction', 'segmentation', ],
         )
 

@@ -1,7 +1,2 @@
 _BASE_: "base_version4.yaml"
 DEBUG: True
-
-DATASETS:
-  SITES:
-    TRAINING: ['denver', 'saltlakecity', 'beijing']
-    VALIDATION: ['sanfrancisco']

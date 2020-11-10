@@ -1,1 +1,5 @@
 _BASE_: "base_version4.yaml"
+DEBUG: False
+THRESHOLDS:
+  TRAIN: 0.0
+  VALIDATION: 0.0

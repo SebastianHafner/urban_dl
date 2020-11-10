@@ -25,6 +25,8 @@ from utils.loss import criterion_from_cfg
 from experiment_manager.args import default_argument_parser
 from experiment_manager.config import new_config
 
+from tqdm import tqdm
+
 
 def train_mean_teacher(net, cfg):
     run_config = {
@@ -39,7 +41,7 @@ def train_mean_teacher(net, cfg):
              }
     print(tabulate(table, headers='keys', tablefmt="fancy_grid", ))
 
-    optimizer = optim.Adam(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.0005)
+    optimizer = optim.AdamW(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.01)
     supervised_criterion = criterion_from_cfg(cfg)
 
     if torch.cuda.device_count() > 1:
@@ -80,7 +82,7 @@ def train_mean_teacher(net, cfg):
 
         student_net.train()
 
-        for i, batch in enumerate(dataloader):
+        for i, batch in enumerate(tqdm(dataloader)):
             optimizer.zero_grad()
 
             x_student = batch['x_student'].to(device)
@@ -133,9 +135,10 @@ def train_mean_teacher(net, cfg):
 
         # evaluation on sample of training and validation set after ever epoch
         thresholds = torch.linspace(0, 1, 101)
-        train_maxF1, train_argmaxF1 = model_eval(teacher_net, cfg, device, thresholds, 'training', epoch, global_step)
+        train_maxF1, train_argmaxF1 = model_eval(teacher_net, cfg, device, thresholds, 'training', epoch, global_step,
+                                                 max_samples=500)
         val_f1, val_argmaxF1 = model_eval(teacher_net, cfg, device, thresholds, 'validation', epoch, global_step,
-                                          specific_index=train_argmaxF1)
+                                          specific_index=train_argmaxF1, max_samples=500)
 
         # TODO: add evaluation on test set
 
@@ -228,7 +231,9 @@ def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=99
 
     dataset_length = np.minimum(len(dataset), max_samples)
     with torch.no_grad():
-        for step, batch in enumerate(dataloader):
+        for step, batch in enumerate(tqdm(dataloader)):
+            if step == dataset_length:
+                break
             is_labeled = batch['is_labeled']
             # ensuring that at least one sample in batch is labeled
             if torch.sum(is_labeled) > 0:
@@ -245,9 +250,6 @@ def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=99
                         callback(imgs, y_label, y_pred)
                     else:
                         callback(y_label, y_pred)
-
-                if step >= dataset_length:
-                    break
 
 
 def gpu_stats():

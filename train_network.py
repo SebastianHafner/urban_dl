@@ -25,6 +25,7 @@ from utils.loss import criterion_from_cfg
 from experiment_manager.args import default_argument_parser
 from experiment_manager.config import new_config
 
+from tqdm import tqdm
 
 def train_net(net, cfg):
 
@@ -40,7 +41,7 @@ def train_net(net, cfg):
              }
     print(tabulate(table, headers='keys', tablefmt="fancy_grid", ))
 
-    optimizer = optim.Adam(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.0005)
+    optimizer = optim.AdamW(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.01)
     criterion = criterion_from_cfg(cfg)
 
     if torch.cuda.device_count() > 1:
@@ -89,7 +90,7 @@ def train_net(net, cfg):
 
         net.train()
 
-        for i, batch in enumerate(dataloader):
+        for i, batch in enumerate(tqdm(dataloader)):
             optimizer.zero_grad()
 
             x = batch['x'].to(device)
@@ -127,9 +128,10 @@ def train_net(net, cfg):
 
         # evaluation on sample of training and validation set after ever epoch
         thresholds = torch.linspace(0, 1, 101)
-        train_maxF1, train_argmaxF1 = model_eval(net, cfg, device, thresholds, 'training', epoch, global_step)
+        train_maxF1, train_argmaxF1 = model_eval(net, cfg, device, thresholds, 'training', epoch, global_step,
+                                                 max_samples=500)
         val_f1, val_argmaxF1 = model_eval(net, cfg, device, thresholds, 'validation', epoch, global_step,
-                                          specific_index=train_argmaxF1)
+                                          specific_index=train_argmaxF1, max_samples=500)
 
         # updating best validation f1 score
         best_val_f1 = val_f1 if val_f1 > best_val_f1 else val_f1
@@ -222,7 +224,7 @@ def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=99
 
     dataset_length = np.minimum(len(dataset), max_samples)
     with torch.no_grad():
-        for step, batch in enumerate(dataloader):
+        for step, batch in enumerate(tqdm(dataloader)):
             imgs = batch['x'].to(device)
             y_label = batch['y'].to(device)
 
@@ -279,7 +281,7 @@ if __name__ == '__main__':
     if not cfg.DEBUG:
         wandb.init(
             name=cfg.NAME,
-            project='urban_extraction',
+            project='urban_extraction_version4',
             tags=['run', 'urban', 'extraction', 'segmentation', ],
         )
 

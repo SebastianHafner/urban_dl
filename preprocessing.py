@@ -103,14 +103,13 @@ if __name__ == '__main__':
                      'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
                      'charlston', 'seattle', 'daressalam', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson',
                      'sanfrancisco', 'vancouver', 'calgary', 'kampala']
-    unlabeled_sites = ['beijing', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'rodejanairo',
-                       'shanghai', 'sidney', 'stockholm']
+    unlabeled_sites = ['beijing', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'riodejanairo',
+                       'sidney', 'stockholm']
 
     all_sites = labeled_sites + unlabeled_sites
     for i, site in enumerate(all_sites):
         labeled = True if site in labeled_sites else False
-        if i > 28:
-            preprocess(dataset_path, site, labels_exist=labeled, patch_size=256)
+        preprocess(dataset_path, site, labels_exist=labeled, patch_size=256)
 
     # sites_split(northamerican_sites, 0.8)
 

@@ -1,13 +1,19 @@
-_BASE_: "base_v3.yaml"
+_BASE_: "base_version4.yaml"
 DEBUG: False
 THRESHOLDS:
-  TRAIN: 0.46
-  VALIDATION: 0.44
+  TRAIN: 0.0
+  VALIDATION: 0.0
 
 MODEL:
-  TYPE: 'unet'
-  IN_CHANNELS: 4
+  IN_CHANNELS: 2
 
 DATALOADER:
   MODE: 'sar'
-  SENTINEL1_BANDS: ['VV_mean', 'VV_stdDev', 'VH_mean', 'VH_stdDev']
+  SENTINEL1_BANDS: ['VV', 'VH']
+
+DATASETS:
+  SITES:
+    TRAINING: ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
+               'minneapolis', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
+               'charlston', 'seattle', 'daressalam', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson']
+    VALIDATION: ['sanfrancisco', 'atlanta', 'vancouver', 'calgary', 'kampala']

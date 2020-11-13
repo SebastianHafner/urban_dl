@@ -19,3 +19,6 @@ DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction_dataset_
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')\
 
+
+def run_inference(config_name: str, checkpoint: int, site: str):
+    pass

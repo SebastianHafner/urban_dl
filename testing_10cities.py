@@ -44,10 +44,10 @@ def run_inference(config_name: str, checkpoint: int, site: str):
             transform = patch['transform']
             crs = patch['crs']
             patch_id = patch['patch_id']
-            pred_file = save_path / f'pred_{config_name}_{patch_id}.tif'
+            pred_file = save_path / f'pred_{site}_{config_name}_{patch_id}.tif'
             write_tif(pred_file, pred, transform, crs)
 
-    combine_tif_patches(save_path, f'pred_{config_name}', delete_tiles=True)
+    combine_tif_patches(save_path, f'pred_{site}_{config_name}', delete_tiles=True)
 
 
 if __name__ == '__main__':

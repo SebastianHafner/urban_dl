@@ -12,20 +12,23 @@ from utils.geotiff import *
 # dataset for urban extraction with building footprints
 class UrbanExtractionDataset(torch.utils.data.Dataset):
 
-    def __init__(self, cfg, dataset: str, include_projection: bool = False, no_augmentations: bool = False):
+    def __init__(self, cfg, dataset: str, include_projection: bool = False, no_augmentations: bool = False,
+                 include_unlabeled: bool = False):
         super().__init__()
 
         self.cfg = cfg
-        self.dataset = dataset
         self.root_dir = Path(cfg.DATASETS.PATH)
 
         self.dataset = dataset
         if dataset == 'training':
-            self.sites = cfg.DATASETS.SITES.TRAINING
+            self.sites = list(cfg.DATASETS.TRAINING)
         elif dataset == 'validation':
-            self.sites = cfg.DATASETS.SITES.VALIDATION
+            self.sites = list(cfg.DATASETS.VALIDATION)
         else:  # used to load only 1 city passed as dataset
             self.sites = [dataset]
+
+        if include_unlabeled:
+            self.sites += cfg.DATASETS.UNLABELED
 
         self.no_augmentations = no_augmentations
         self.transform = transforms.Compose([Numpy2Torch()]) if no_augmentations else compose_transformations(cfg)
@@ -34,7 +37,8 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         for site in self.sites:
             samples_file = self.root_dir / site / 'samples.json'
             metadata = load_json(samples_file)
-            self.samples += metadata['samples']
+            samples = metadata['samples']
+            self.samples += samples
             s1_bands = metadata['sentinel1_features']
             s2_bands = metadata['sentinel2_features']
         self.length = len(self.samples)
@@ -52,7 +56,7 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
         site = sample['site']
         patch_id = sample['patch_id']
-        label_exists = sample['label_exists']
+        is_labeled = sample['is_labeled']
 
         # loading images
         mode = self.cfg.DATALOADER.MODE
@@ -78,10 +82,11 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
             aux_img, _, _ = self._get_auxiliary_data(aux_input, site, patch_id)
             img = np.concatenate([aux_img, img], axis=-1)
 
-        if label_exists:
+        if is_labeled:
             label, _, _ = self._get_label_data(site, patch_id)
         else:
             label = np.zeros((img.shape[0], img.shape[1], 1), dtype=np.float32)
+
         img, label = self.transform((img, label))
 
         item = {
@@ -89,7 +94,8 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
             'y': label,
             'site': site,
             'patch_id': patch_id,
-            'image_weight': np.float(sample['img_weight'])
+            'is_labeled': sample['is_labeled'],
+            'image_weight': np.float(sample['img_weight']),
         }
 
         if self.include_projection:
@@ -180,7 +186,7 @@ class MTUrbanExtractionDataset(torch.utils.data.Dataset):
 
         site = sample['site']
         patch_id = sample['patch_id']
-        label_exists = sample['label_exists']
+        label_exists = sample['is_labeled']
 
         # loading images
         mode = self.cfg.DATALOADER.MODE
@@ -266,6 +272,57 @@ class MTUrbanExtractionDataset(torch.utils.data.Dataset):
 
     def __str__(self):
         return f'Dataset with {self.length} samples across {len(self.sites)} sites.'
+
+
+# dataset for urban extraction with building footprints
+class STUrbanExtractionDataset(torch.utils.data.Dataset):
+
+    def __init__(self, cfg, sar_cfg, run_type: str, no_augmentations: bool = False):
+        super().__init__()
+
+        self.transform = transforms.Compose([Numpy2Torch()]) if no_augmentations else compose_transformations(cfg)
+
+        self.dataset = UrbanExtractionDataset(cfg, run_type, no_augmentations=True, include_unlabeled=True)
+        sar_cfg.DATASETS = cfg.DATASETS
+        self.sar_dataset = UrbanExtractionDataset(sar_cfg, run_type, no_augmentations=True, include_unlabeled=True)
+
+        # samples need to be identical
+        assert(len(self.dataset) == len(self.sar_dataset))
+        self.length = len(self.dataset)
+        self.sites = self.dataset.sites
+
+    def __getitem__(self, index):
+
+        # loading metadata of sample
+        item = self.dataset.__getitem__(index)
+        item_sar = self.sar_dataset.__getitem__(index)
+
+        img = item['x'].numpy().transpose((1, 2, 0))
+        split_index = img.shape[-1]
+        img_sar = item_sar['x'].numpy().transpose((1, 2, 0))
+        label = item['y'].numpy().transpose((1, 2, 0))
+
+        img_concat, label = self.transform((np.concatenate((img, img_sar), axis=-1), label))
+        img = img_concat[:split_index, ]
+        img_sar = img_concat[split_index:, ]
+
+        item = {
+            'x': img,
+            'x_sar': img_sar,
+            'y': label,
+            'is_labeled': item['is_labeled'],
+            'site': item['site'],
+            'patch_id': item['patch_id'],
+        }
+
+        return item
+
+    def __len__(self):
+        return self.length
+
+    def __str__(self):
+        return f'Dataset with {self.length} samples across {len(self.sites)} sites.'
+
 
 # dataset for urban extraction with building footprints
 class SpaceNet7Dataset(torch.utils.data.Dataset):

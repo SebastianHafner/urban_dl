@@ -1,20 +1,2 @@
-_BASE_: "base_v2.yaml"
+_BASE_: "optical.yaml"
 DEBUG: True
-THRESH: 0.45
-
-MODEL:
-  TYPE: 'unet'
-  IN_CHANNELS: 12
-
-DATALOADER:
-  MODE: 'fusion'
-  SENTINEL1_BANDS: ['VV', 'VH']
-  SENTINEL2_BANDS: ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12']
-
-
-DATASETS:
-  PATH: '/storage/shafner/urban_extraction/urban_extraction/'
-  SITES:
-    TRAINING: ['winnipeg']
-    VALIDATION: ['calgary']
-  TESTING: '/storage/shafner/urban_extraction/urban_extraction/sn7/'

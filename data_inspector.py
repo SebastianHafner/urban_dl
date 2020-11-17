@@ -9,7 +9,7 @@ import json
 import pandas as pd
 from tqdm import tqdm
 
-DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction_dataset_version4')
+DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction_dataset')
 METADATA_FILE = Path('C:/Users/shafner/urban_extraction/data/spacenet7/sn7_metadata_v3.csv')
 
 GROUPS = {1: 'NA_AU', 2: 'SA', 3: 'EU', 4: 'SSA', 5: 'NAF_ME', 6: 'AS'}
@@ -81,7 +81,7 @@ def show_patches(city: str, n: int):
 
 if __name__ == '__main__':
 
-    show_patches('elpaso', 20)
+    show_patches('kigali', 20)
 
     # metadata = pd.read_csv(METADATA_FILE)
     # for index, row in metadata.iterrows():

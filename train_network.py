@@ -27,6 +27,7 @@ from experiment_manager.config import new_config
 
 from tqdm import tqdm
 
+
 def train_net(net, cfg):
 
     run_config = {
@@ -49,8 +50,6 @@ def train_net(net, cfg):
         net = nn.DataParallel(net)
 
     net.to(device)
-
-    use_edge_loss = cfg.MODEL.LOSS_TYPE == 'FrankensteinEdgeLoss'
 
     # reset the generators
     dataset = UrbanExtractionDataset(cfg=cfg, dataset='training')
@@ -78,7 +77,6 @@ def train_net(net, cfg):
     # tracking variables
     global_step = 0
     best_val_f1 = 0
-    epochs_no_improve = 0
 
     for epoch in range(epochs):
         print(f'Starting epoch {epoch + 1}/{epochs}.')
@@ -90,7 +88,7 @@ def train_net(net, cfg):
 
         net.train()
 
-        for i, batch in enumerate(tqdm(dataloader)):
+        for i, batch in enumerate(dataloader):
             optimizer.zero_grad()
 
             x = batch['x'].to(device)
@@ -124,14 +122,15 @@ def train_net(net, cfg):
                 'time': time_per_epoch,
                 'total_positive_pixels': np.mean(positive_pixels_set),
                 'step': global_step,
+                'epoch': epoch,
             })
 
         # evaluation on sample of training and validation set after ever epoch
         thresholds = torch.linspace(0, 1, 101)
         train_maxF1, train_argmaxF1 = model_eval(net, cfg, device, thresholds, 'training', epoch, global_step,
-                                                 max_samples=500)
+                                                 max_samples=10_000)
         val_f1, val_argmaxF1 = model_eval(net, cfg, device, thresholds, 'validation', epoch, global_step,
-                                          specific_index=train_argmaxF1, max_samples=500)
+                                          specific_index=train_argmaxF1, max_samples=10_000)
 
         # updating best validation f1 score
         best_val_f1 = val_f1 if val_f1 > best_val_f1 else val_f1
@@ -207,7 +206,6 @@ def model_eval(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch:
                    'step': step, 'epoch': epoch,
                    })
 
-
     return f1.item(), argmax_f1.item()
 
 
@@ -222,14 +220,12 @@ def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=99
     dataloader = torch_data.DataLoader(dataset, batch_size=batch_size, num_workers=num_workers,
                                        shuffle=cfg.DATALOADER.SHUFFLE, drop_last=True)
 
-    dataset_length = np.minimum(len(dataset), max_samples)
     with torch.no_grad():
         for step, batch in enumerate(tqdm(dataloader)):
             imgs = batch['x'].to(device)
             y_label = batch['y'].to(device)
 
             y_pred = net(imgs)
-
             y_pred = torch.sigmoid(y_pred)
 
             if callback:
@@ -281,7 +277,7 @@ if __name__ == '__main__':
     if not cfg.DEBUG:
         wandb.init(
             name=cfg.NAME,
-            project='urban_extraction_version4',
+            project='urban_extraction',
             tags=['run', 'urban', 'extraction', 'segmentation', ],
         )
 

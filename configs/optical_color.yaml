@@ -1,9 +1,0 @@
-_BASE_: "optical.yaml"
-DEBUG: False
-
-THRESHOLDS:
-  TRAIN: 0.44
-  VALIDATION: 0.41
-
-AUGMENTATION:
-  COLOR_SHIFT: True

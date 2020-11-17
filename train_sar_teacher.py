@@ -15,9 +15,9 @@ from torch.utils import data as torch_data
 from tabulate import tabulate
 import wandb
 
-from networks.network_loader import create_network
+from networks.network_loader import create_network, load_network
 
-from utils.dataloader import MTUrbanExtractionDataset
+from utils.dataloader import UrbanExtractionDataset, STUrbanExtractionDataset
 from utils.augmentations import *
 from utils.metrics import MultiThresholdMetric
 from utils.loss import criterion_from_cfg
@@ -25,8 +25,10 @@ from utils.loss import criterion_from_cfg
 from experiment_manager.args import default_argument_parser
 from experiment_manager.config import new_config
 
+from tqdm import tqdm
 
-def train_mean_teacher(net, cfg):
+
+def train_sar_teacher(cfg, sar_cfg):
     run_config = {
         'CONFIG_NAME': cfg.NAME,
         'device': device,
@@ -39,31 +41,17 @@ def train_mean_teacher(net, cfg):
              }
     print(tabulate(table, headers='keys', tablefmt="fancy_grid", ))
 
-    optimizer = optim.Adam(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.0005)
-    supervised_criterion = criterion_from_cfg(cfg)
+    net = create_network(cfg)
+    optimizer = optim.AdamW(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.01)
+    criterion = criterion_from_cfg(cfg)
+    net.to(device)
 
-    def mt_criterion(student_net_out, teacher_net_out, target, is_labeled):
+    sar_net_file = Path(sar_cfg.OUTPUT_BASE_DIR) / f'{sar_cfg.NAME}_{sar_cfg.INFERENCE.CHECKPOINT}.pkl'
+    sar_net = load_network(sar_cfg, sar_net_file)
+    sar_net.to(device)
+    sar_net.eval()
 
-        supervised_loss = supervised_criterion(student_net_out[is_labeled,], target[is_labeled])
-
-        student_probs = torch.sigmoid(student_net_out)
-        teacher_probs = torch.sigmoid(teacher_net_out)
-
-        # mean square error
-        consistency_loss = torch.div(torch.sum(torch.pow(student_probs - teacher_probs, 2)), torch.numel(student_probs))
-
-        return supervised_loss + consistency_loss
-
-    if torch.cuda.device_count() > 1:
-        print(torch.cuda.device_count(), " GPUs!")
-        net = nn.DataParallel(net)
-
-    student_net = net
-    teacher_net = create_teacher_net(student_net, cfg)
-    student_net.to(device)
-    teacher_net.to(device)
-
-    dataset = MTUrbanExtractionDataset(cfg=cfg, dataset='training')
+    dataset = STUrbanExtractionDataset(cfg=cfg, sar_cfg=sar_cfg, run_type='training')
     print(dataset)
     dataloader_kwargs = {
         'batch_size': cfg.TRAINER.BATCH_SIZE,
@@ -86,36 +74,52 @@ def train_mean_teacher(net, cfg):
         print(f'Starting epoch {epoch + 1}/{epochs}.')
 
         start = timeit.default_timer()
-        epoch_loss = 0
         loss_set = []
+        sar_loss_set = []
+        consistency_loss_set = []
 
-        student_net.train()
+        net.train()
 
-        for i, batch in enumerate(dataloader):
+        for i, batch in enumerate(tqdm(dataloader)):
             optimizer.zero_grad()
 
-            x_student = batch['x_student'].to(device)
-            x_teacher = batch['x_teacher'].to(device)
+            x = batch['x'].to(device)
+            x_sar = batch['x_sar'].to(device)
             y_gts = batch['y'].to(device)
             is_labeled = batch['is_labeled']
 
-            output_student = student_net(x_student)
-            output_teacher = teacher_net(x_teacher)
+            logits = net(x)
 
-            loss = mt_criterion(output_student, output_teacher, y_gts, is_labeled)
-            epoch_loss += loss.item()
+            loss, consistency_loss = None, None
+
+            if is_labeled.any():
+                loss = criterion(logits[is_labeled, ], y_gts[is_labeled])
+                loss_set.append(loss.item())
+
+            if not is_labeled.all():
+                not_labeled = torch.logical_not(is_labeled)
+                probs = torch.sigmoid(logits[not_labeled, ])
+                with torch.no_grad():
+                    probs_sar = torch.sigmoid(sar_net(x_sar[not_labeled, ]))
+                # mean square error
+                # TODO: test intersection over union as consistency loss
+                consistency_loss = torch.div(torch.sum(torch.pow(probs - probs_sar, 2)), torch.numel(probs))
+                consistency_loss_set.append(consistency_loss.item())
+
+            if loss is None and consistency_loss is not None:
+                loss = consistency_loss
+            elif loss is not None and consistency_loss is not None:
+                loss = loss + consistency_loss
+            else:
+                loss = loss
+
             loss.backward()
             optimizer.step()
 
-            loss_set.append(loss.item())
-
             global_step += 1
 
-            # update teacher after each step
-            update_teacher_net(student_net, teacher_net, alpha=1, global_step=global_step)
-
-            # if cfg.DEBUG:
-            #     break
+            if cfg.DEBUG:
+                break
             # end of batch
 
         stop = timeit.default_timer()
@@ -124,20 +128,21 @@ def train_mean_teacher(net, cfg):
 
         if not cfg.DEBUG:
             wandb.log({
-                'loss': loss.item(),
                 'avg_loss': np.mean(loss_set),
+                'avg_loss_sar': np.mean(sar_loss_set),
+                'avg_consistency_loss': np.mean(consistency_loss_set),
                 'gpu_memory': max_mem,
                 'time': time_per_epoch,
                 'step': global_step,
+                'epoch': epoch,
             })
 
         # evaluation on sample of training and validation set after ever epoch
         thresholds = torch.linspace(0, 1, 101)
-        train_maxF1, train_argmaxF1 = model_eval(student_net, teacher_net, cfg, device, thresholds, 'training', epoch,
-                                                 global_step)
-        val_f1, val_argmaxF1 = model_eval(student_net, teacher_net, cfg, device, thresholds, 'validation', epoch,
-                                          global_step,
-                                          specific_index=train_argmaxF1)
+        train_maxF1, train_argmaxF1 = model_eval(net, cfg, device, thresholds, 'training', epoch, global_step,
+                                                 max_samples=10_000)
+        val_f1, val_argmaxF1 = model_eval(net, cfg, device, thresholds, 'validation', epoch, global_step,
+                                          specific_index=train_argmaxF1, max_samples=10_000)
 
         # TODO: add evaluation on test set
 
@@ -160,7 +165,7 @@ def image_sampling_weight(samples_metadata):
 
 # specific threshold creates an additional log for that threshold
 # can be used to apply best training threshold to validation set
-def model_eval(net, net_ema, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: int, step: int,
+def model_eval(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: int, step: int,
                max_samples: int = 1000, specific_index: int = None):
     y_true_set = []
     y_pred_set = []
@@ -176,8 +181,8 @@ def model_eval(net, net_ema, cfg, device, thresholds: torch.Tensor, run_type: st
 
         measurer.add_sample(y_true, y_pred)
 
-    dataset = MTUrbanExtractionDataset(cfg=cfg, dataset=run_type, no_augmentations=True)
-    inference_loop(net, net_ema, cfg, device, evaluate, max_samples=max_samples, dataset=dataset)
+    dataset = UrbanExtractionDataset(cfg=cfg, dataset=run_type, no_augmentations=True)
+    inference_loop(net, cfg, device, evaluate, max_samples=max_samples, dataset=dataset)
 
     print(f'Computing {run_type} F1 score ', end=' ', flush=True)
 
@@ -218,29 +223,27 @@ def model_eval(net, net_ema, cfg, device, thresholds: torch.Tensor, run_type: st
     return f1.item(), argmax_f1.item()
 
 
-def inference_loop(net, ema_net, cfg, device, callback=None, batch_size=1, max_samples=999999999,
+def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=999999999,
                    dataset=None, callback_include_x=False):
     net.to(device)
-    ema_net.to(device)
     net.eval()
-    ema_net.eval()
 
     # reset the generators
     num_workers = 0 if cfg.DEBUG else cfg.DATALOADER.NUM_WORKER
     dataloader = torch_data.DataLoader(dataset, batch_size=batch_size, num_workers=num_workers,
-                                       shuffle=cfg.DATALOADER.SHUFFLE, drop_last=True)
+                                       shuffle=True, drop_last=True)
 
     dataset_length = np.minimum(len(dataset), max_samples)
     with torch.no_grad():
-        for step, batch in enumerate(dataloader):
-            imgs = batch['x_student'].to(device)
+        for step, batch in enumerate(tqdm(dataloader)):
+            if step == dataset_length:
+                break
+
+            imgs = batch['x'].to(device)
             y_label = batch['y'].to(device)
 
             y_pred = net(imgs)
-            y_pred_ema = ema_net(imgs)
-
             y_pred = torch.sigmoid(y_pred)
-            y_pred_ema = torch.sigmoid(y_pred_ema)
 
             if callback:
                 if callback_include_x:
@@ -248,7 +251,7 @@ def inference_loop(net, ema_net, cfg, device, callback=None, batch_size=1, max_s
                 else:
                     callback(y_label, y_pred)
 
-            if (max_samples is not None) and step >= max_samples:
+            if cfg.DEBUG:
                 break
 
 
@@ -264,33 +267,18 @@ def setup(args):
     cfg.merge_from_list(args.opts)
     cfg.NAME = args.config_file
 
-    # TODO: might not be necessary -> remove
-    if args.data_dir:
-        cfg.DATASETS.TRAIN = (args.data_dir,)
-    return cfg
+    sar_cfg = new_config()
+    sar_cfg.merge_from_file(f'configs/{args.sar_config_file}.yaml')
+    sar_cfg.merge_from_list(args.opts)
+    sar_cfg.NAME = args.sar_config_file
 
-
-def update_teacher_net(net, ema_net, alpha, global_step):
-    # Use the true average until the exponential average is more correct
-    alpha = min(1 - 1 / (global_step + 1), alpha)
-    for ema_param, param in zip(ema_net.parameters(), net.parameters()):
-        ema_param.data.mul_(alpha).add_(1 - alpha, param.data)
-    return ema_net
-
-
-def create_teacher_net(net, cfg):
-    net_copy = type(net)(cfg)  # get a new instance
-    net_copy.load_state_dict(net.state_dict())  # copy weights and stuff
-    # TODO: not sure about this one
-    for param in net_copy.parameters():
-        param.detach_()
-    return net_copy
+    return cfg, sar_cfg
 
 
 if __name__ == '__main__':
 
     args = default_argument_parser().parse_known_args()[0]
-    cfg = setup(args)
+    cfg, sar_cfg = setup(args)
 
     # make training deterministic
     torch.manual_seed(cfg.SEED)
@@ -298,10 +286,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    net = create_network(cfg)
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # cudnn.benchmark = True # faster convolutions, but more memory
 
     print('=== Runnning on device: p', device)
 
@@ -313,10 +298,8 @@ if __name__ == '__main__':
         )
 
     try:
-        train_mean_teacher(net, cfg)
+        train_sar_teacher(cfg, sar_cfg)
     except KeyboardInterrupt:
-        torch.save(net.state_dict(), 'INTERRUPTED.pth')
-        print('Saved interrupt')
         try:
             sys.exit(0)
         except SystemExit:

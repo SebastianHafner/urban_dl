@@ -1,9 +1,0 @@
-_BASE_: "fusion.yaml"
-DEBUG: False
-
-THRESHOLDS:
-  TRAIN: 0.40
-  VALIDATION: 0.39
-
-AUGMENTATION:
-  COLOR_SHIFT: True

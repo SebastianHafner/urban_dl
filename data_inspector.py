@@ -81,7 +81,7 @@ def show_patches(city: str, n: int):
 
 if __name__ == '__main__':
 
-    show_patches('winnipeg', 20)
+    show_patches('elpaso', 20)
 
     # metadata = pd.read_csv(METADATA_FILE)
     # for index, row in metadata.iterrows():

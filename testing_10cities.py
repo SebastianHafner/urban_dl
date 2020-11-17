@@ -15,6 +15,9 @@ NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
 
 
 def run_inference(config_name: str, checkpoint: int, site: str):
+
+    print(f'running inference for {site}...')
+
     # loading config and network
     cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
     net_file = NETWORK_PATH / f'{config_name}_{checkpoint}.pkl'
@@ -56,7 +59,8 @@ def run_inference(config_name: str, checkpoint: int, site: str):
 
 
 if __name__ == '__main__':
-    config_name = 'fusion'
+    config_name = 'optical'
     checkpoint = 50
-    roi_id = 'milano'
-    run_inference(config_name, checkpoint, roi_id)
+    cities = ['beijing', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'stockholm']
+    for city in cities:
+        run_inference(config_name, checkpoint, city)

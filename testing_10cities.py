@@ -5,6 +5,7 @@ from experiment_manager.config import config
 from utils.dataloader import InferenceDataset, UrbanExtractionDataset
 from utils.geotiff import *
 from tqdm import tqdm
+import shutil
 import numpy as np
 import torchvision.transforms.functional as TF
 
@@ -23,14 +24,16 @@ def run_inference(config_name: str, checkpoint: int, site: str):
     net.eval()
 
     # loading dataset from config (requires inference.json)
-    dataset = UrbanExtractionDataset(cfg, site, include_projection=True)
+    dataset = UrbanExtractionDataset(cfg, site, no_augmentations=True, include_projection=True)
 
     # config inference directory
     save_path = ROOT_PATH / 'inference' / config_name
     save_path.mkdir(exist_ok=True)
-    # site directory
-    save_path = save_path / site
-    save_path.mkdir(exist_ok=True)
+    # temporary directory
+    temp_path = save_path / f'temp_{site}'
+    temp_path.mkdir(exist_ok=True)
+
+    basename = f'pred_{site}_{config_name}'
 
     with torch.no_grad():
         for i in tqdm(range(len(dataset))):
@@ -44,10 +47,12 @@ def run_inference(config_name: str, checkpoint: int, site: str):
             transform = patch['transform']
             crs = patch['crs']
             patch_id = patch['patch_id']
-            pred_file = save_path / f'pred_{site}_{config_name}_{patch_id}.tif'
+            pred_file = temp_path / f'{basename}_{patch_id}.tif'
             write_tif(pred_file, pred, transform, crs)
 
-    combine_tif_patches(save_path, f'pred_{site}_{config_name}', delete_tiles=True)
+    combine_tif_patches(temp_path, basename, delete_tiles=True)
+    shutil.move(temp_path / f'{basename}.tif', save_path / f'{basename}.tif')
+    temp_path.rmdir()
 
 
 if __name__ == '__main__':

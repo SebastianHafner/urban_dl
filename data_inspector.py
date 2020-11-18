@@ -9,6 +9,7 @@ import json
 import pandas as pd
 from tqdm import tqdm
 
+ROOT_PATH = Path('/storage/shafner/urban_extraction')
 DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction_dataset')
 METADATA_FILE = Path('C:/Users/shafner/urban_extraction/data/spacenet7/sn7_metadata_v3.csv')
 
@@ -79,6 +80,32 @@ def show_patches(city: str, n: int):
         plt.close()
 
 
+def patches2png(site: str, sensor: str, band_indices: list, rescale_factor: float = 1, patch_size: int = 256):
+    # config inference directory
+    save_path = ROOT_PATH / 'plots' / 'inspection'
+    save_path.mkdir(exist_ok=True)
+
+    folder = ROOT_PATH / 'urban_extraction_dataset' / site / sensor
+    files = [f for f in folder.glob('**/*')]
+
+    files_per_side = int(np.ceil(np.sqrt(len(files))))
+    arr = np.zeros((files_per_side * patch_size, files_per_side * patch_size, 3))
+    for index, f in enumerate(tqdm(files)):
+        patch, _, _ = read_tif(f)
+        m, n, _ = patch.shape
+        i = (index // files_per_side) * patch_size
+        j = (index % files_per_side) * patch_size
+        if len(band_indices) == 3:
+            arr[i:i + m, j:j + n, ] = patch[:, :, band_indices]
+        else:
+            for b in range(3):
+                arr[i:i + m, j:j + n, b:b + 1] = patch[:, :, band_indices]
+
+    plt.imshow(np.clip(arr / rescale_factor, 0, 1))
+    plt.axis('off')
+    save_file = save_path / f'{site}_{sensor}.png'
+    plt.savefig(save_file, dpi=300, bbox_inches='tight')
+
 if __name__ == '__main__':
 
     show_patches('kigali', 20)
@@ -96,3 +123,13 @@ if __name__ == '__main__':
     #
     #         title = f'{index} {aoi_id} {year}-{month:02d} ({country}, {group})'
     #         show_satellite_data_sn7(aoi_id, title)
+    all_sites = ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
+                 'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
+                 'charlston', 'seattle', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson', 'houston',
+                 'sanfrancisco',
+                 'vancouver', 'newyork', 'calgary', 'kampala', 'stockholm', 'beijing', 'jakarta',
+                 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'sidney'
+                 ]
+    for site in all_sites:
+        for sensor, indices, factor in zip(['sentinel1', 'sentinel2'], [[0], [2, 1, 0]], [1, 0.4]):
+            patches2png(site, sensor, indices, factor)

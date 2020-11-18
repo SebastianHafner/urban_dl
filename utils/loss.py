@@ -3,31 +3,31 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 
-def criterion_from_cfg(cfg):
+def get_criterion(loss_type, negative_weight: float = 1, positive_weight: float = 1):
 
-    if cfg.MODEL.LOSS_TYPE == 'BCEWithLogitsLoss':
+    if loss_type == 'BCEWithLogitsLoss':
         criterion = nn.BCEWithLogitsLoss()
-    elif cfg.MODEL.LOSS_TYPE == 'CrossEntropyLoss':
-        balance_weight = [cfg.MODEL.NEGATIVE_WEIGHT, cfg.MODEL.POSITIVE_WEIGHT]
+    elif loss_type == 'CrossEntropyLoss':
+        balance_weight = [negative_weight, positive_weight]
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         balance_weight = torch.tensor(balance_weight).float().to(device)
         criterion = nn.CrossEntropyLoss(weight=balance_weight)
-    elif cfg.MODEL.LOSS_TYPE == 'SoftDiceLoss':
+    elif loss_type == 'SoftDiceLoss':
         criterion = soft_dice_loss
-    elif cfg.MODEL.LOSS_TYPE == 'SoftDiceBalancedLoss':
+    elif loss_type == 'SoftDiceBalancedLoss':
         criterion = soft_dice_loss_balanced
-    elif cfg.MODEL.LOSS_TYPE == 'JaccardLikeLoss':
+    elif loss_type == 'JaccardLikeLoss':
         criterion = jaccard_like_loss
-    elif cfg.MODEL.LOSS_TYPE == 'ComboLoss':
+    elif loss_type == 'ComboLoss':
         criterion = lambda pred, gts: F.binary_cross_entropy_with_logits(pred, gts) + soft_dice_loss(pred, gts)
-    elif cfg.MODEL.LOSS_TYPE == 'WeightedComboLoss':
+    elif loss_type == 'WeightedComboLoss':
         criterion = lambda pred, gts: 2 * F.binary_cross_entropy_with_logits(pred, gts) + soft_dice_loss(pred, gts)
-    elif cfg.MODEL.LOSS_TYPE == 'FrankensteinLoss':
+    elif loss_type == 'FrankensteinLoss':
         criterion = lambda pred, gts: F.binary_cross_entropy_with_logits(pred, gts) + jaccard_like_balanced_loss(pred, gts)
-    elif cfg.MODEL.LOSS_TYPE == 'MeanSquareErrorLoss':
+    elif loss_type == 'MeanSquareErrorLoss':
         criterion = nn.MSELoss()
     else:
-        raise Exception(f'unknown loss {cfg.MODEL.LOSS_TYPE}')
+        raise Exception(f'unknown loss {loss_type}')
 
     return criterion
 

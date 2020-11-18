@@ -432,7 +432,7 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
 
 
 # dataset for classifying a scene
-class InferenceDataset(torch.utils.data.Dataset):
+class SceneInferenceDataset(torch.utils.data.Dataset):
 
     def __init__(self, cfg, s1_file: Path = None, s2_file: Path = None, patch_size: int = 256,
                  s1_bands: list = None, s2_bands: list = None):
@@ -533,3 +533,102 @@ class InferenceDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.length
+
+
+# dataset for classifying a scene
+class TilesInferenceDataset(torch.utils.data.Dataset):
+
+    def __init__(self, cfg, site: str):
+        super().__init__()
+
+        self.cfg = cfg
+        self.site = site
+        self.root_dir = Path(cfg.DATASETS.PATH)
+        self.transform = transforms.Compose([Numpy2Torch()])
+
+        # getting all files
+        samples_file = self.root_dir / site / 'samples.json'
+        metadata = load_json(samples_file)
+        self.samples = metadata['samples']
+        self.length = len(self.samples)
+
+        # computing extent
+
+
+        # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
+        self.s1_indices = self._get_indices(metadata['sentinel1_features'], cfg.DATALOADER.SENTINEL1_BANDS)
+        self.s2_indices = self._get_indices(metadata['sentinel2_features'], cfg.DATALOADER.SENTINEL2_BANDS)
+
+    def __getitem__(self, index):
+
+        # loading metadata of sample
+        sample = self.samples[index]
+        patch_id = sample['patch_id']
+
+        # loading images
+        mode = self.cfg.DATALOADER.MODE
+        if mode == 'optical':
+            img, geotransform, crs = self._get_sentinel2_data(patch_id)
+        elif mode == 'sar':
+            img, geotransform, crs = self._get_sentinel1_data(patch_id)
+        else:  # fusion baby!!!
+            s1_img, geotransform, crs = self._get_sentinel1_data(patch_id)
+            s2_img, _, _ = self._get_sentinel2_data(patch_id)
+            img = np.concatenate([s1_img, s2_img], axis=-1)
+
+        img, _ = self.transform((img, np.zeros((img.shape[0], img.shape[1], 1), dtype=np.float32)))
+
+        item = {
+            'x': img,
+            'x_teacher': img,
+            'y': label,
+            'is_labeled': label_exists,
+            'site': site,
+            'patch_id': patch_id,
+            'image_weight': np.float(sample['img_weight'])
+        }
+
+        if self.include_projection:
+            item['transform'] = geotransform
+            item['crs'] = crs
+
+        return item
+
+    def _get_sentinel1_data(self, site, patch_id):
+        file = self.root_dir / site / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(file)
+        img = img[:, :, self.s1_indices]
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_sentinel2_data(self, site, patch_id):
+        file = self.root_dir / site / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(file)
+        img = img[:, :, self.s2_indices]
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_auxiliary_data(self, aux_input, site, patch_id):
+        file = self.root_dir / site / aux_input / f'{aux_input}_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(file)
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_label_data(self, site, patch_id):
+        label = self.cfg.DATALOADER.LABEL
+        threshold = self.cfg.DATALOADER.LABEL_THRESH
+
+        label_file = self.root_dir / site / label / f'{label}_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(label_file)
+        if threshold >= 0:
+            img = img > threshold
+
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    @staticmethod
+    def _get_indices(bands, selection):
+        return [bands.index(band) for band in selection]
+
+    def __len__(self):
+        return self.length
+
+    def __str__(self):
+        return f'Dataset with {self.length} samples across {len(self.sites)} sites.'
+

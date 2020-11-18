@@ -36,70 +36,30 @@ def run_inference(config_name: str, site: str):
     temp_path = save_path / f'temp_{site}'
     temp_path.mkdir(exist_ok=True)
 
-    basename = f'pred_{site}_{config_name}'
+    basename = f'prob_{site}_{config_name}'
 
     with torch.no_grad():
         for i in tqdm(range(len(dataset))):
             patch = dataset.__getitem__(i)
             img = patch['x'].to(device)
             logits = net(img.unsqueeze(0))
-            prob = torch.sigmoid(logits)
-            pred = prob > cfg.THRESHOLDS.VALIDATION
-            pred = pred.squeeze().cpu().numpy().astype('uint8')
+            prob = torch.sigmoid(logits) * 100
+            prob = prob.squeeze().cpu().numpy().astype('uint8')
 
             transform = patch['transform']
             crs = patch['crs']
             patch_id = patch['patch_id']
-            pred_file = temp_path / f'{basename}_{patch_id}.tif'
-            write_tif(pred_file, pred, transform, crs)
+            prob_file = temp_path / f'{basename}_{patch_id}.tif'
+            write_tif(prob_file, np.clip(prob, 0, 100), transform, crs)
 
     combine_tif_patches(temp_path, basename, delete_tiles=True)
     shutil.move(temp_path / f'{basename}.tif', save_path / f'{basename}.tif')
     temp_path.rmdir()
 
 
-def patches2png(site: str, sensor: str, band_indices: list, rescale_factor: float = 1, patch_size: int = 256):
-
-    # config inference directory
-    save_path = ROOT_PATH / 'plots' / 'inspection'
-    save_path.mkdir(exist_ok=True)
-
-    folder = ROOT_PATH / 'urban_extraction_dataset' / site / sensor
-    files = [f for f in folder.glob('**/*')]
-
-    files_per_side = int(np.ceil(np.sqrt(len(files))))
-    arr = np.zeros((files_per_side * patch_size, files_per_side * patch_size, 3))
-    for index, f in enumerate(tqdm(files)):
-        patch, _, _ = read_tif(f)
-        m, n, _ = patch.shape
-        i = (index // files_per_side) * patch_size
-        j = (index % files_per_side) * patch_size
-        if len(band_indices) == 3:
-            arr[i:i+m, j:j+n, ] = patch[:, :, band_indices]
-        else:
-            for b in range(3):
-                arr[i:i+m, j:j+n, b:b+1] = patch[:, :, band_indices]
-
-    plt.imshow(np.clip(arr / rescale_factor, 0, 1))
-    plt.axis('off')
-    save_file = save_path / f'{site}_{sensor}.png'
-    plt.savefig(save_file, dpi=300, bbox_inches='tight')
-
-
 if __name__ == '__main__':
-    # config_name = 'sar'
-    # cities = ['stockholm', 'beijing', 'jakarta', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai', 'riodejanairo',
-    #           'sidney']
-    # for city in cities:
-    #     patches2png(city, 'sentinel2', [2, 1, 0], 0.4)
-    #     # run_inference(config_name, city)
+    config_name = 'optical_st'
+    cities = ['stockholm', 'beijing', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'sidney']
+    for city in cities:
+        run_inference(config_name, city)
 
-    all_sites = ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
-        'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
-        'charlston', 'seattle', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson', 'houston', 'sanfrancisco',
-        'vancouver', 'newyork', 'calgary', 'kampala', 'stockholm', 'beijing', 'jakarta',
-        'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'sidney'
-    ]
-    for site in all_sites:
-        for sensor, indices, factor in zip(['sentinel1', 'sentinel2'], [[0], [2, 1, 0]], [1, 0.4]):
-            patches2png(site, sensor, indices, factor)

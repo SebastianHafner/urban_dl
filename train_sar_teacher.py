@@ -20,7 +20,7 @@ from networks.network_loader import create_network, load_network
 from utils.dataloader import UrbanExtractionDataset, STUrbanExtractionDataset
 from utils.augmentations import *
 from utils.metrics import MultiThresholdMetric
-from utils.loss import criterion_from_cfg
+from utils.loss import get_criterion
 
 from experiment_manager.args import default_argument_parser
 from experiment_manager.config import new_config
@@ -43,13 +43,14 @@ def train_sar_teacher(cfg, sar_cfg):
 
     net = create_network(cfg)
     optimizer = optim.AdamW(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.01)
-    criterion = criterion_from_cfg(cfg)
+    criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
     net.to(device)
 
     sar_net_file = Path(sar_cfg.OUTPUT_BASE_DIR) / f'{sar_cfg.NAME}_{sar_cfg.INFERENCE.CHECKPOINT}.pkl'
     sar_net = load_network(sar_cfg, sar_net_file)
     sar_net.to(device)
     sar_net.eval()
+    consistency_criterion = get_criterion(cfg.CONSISTENCY_TRAINER.LOSS_TYPE)
 
     dataset = STUrbanExtractionDataset(cfg=cfg, sar_cfg=sar_cfg, run_type='training')
     print(dataset)
@@ -106,8 +107,8 @@ def train_sar_teacher(cfg, sar_cfg):
                     else:
                         output_sar = probs_sar
                 # mean square error
-                # TODO: test intersection over union as consistency loss
-                consistency_loss = torch.div(torch.sum(torch.pow(output - output_sar, 2)), torch.numel(output))
+                # consistency_loss = torch.div(torch.sum(torch.pow(output - output_sar, 2)), torch.numel(output))
+                consistency_loss = consistency_criterion(logits[not_labeled, ], output_sar)
                 consistency_loss_set.append(consistency_loss.item())
 
             if loss is None and consistency_loss is not None:

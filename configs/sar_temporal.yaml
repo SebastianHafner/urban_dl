@@ -7,8 +7,8 @@ INFERENCE:
     VALIDATION: 0.0
 
 MODEL:
-  TYPE: 'unet'
-  IN_CHANNELS: 10
+  IN_CHANNELS: 4
 
 DATALOADER:
-  MODE: 'optical'
+  MODE: 'sar'
+  SENTINEL1_BANDS: ['VV_mean', 'VV_stdDev', 'VH_mean', 'VH_stdDev']

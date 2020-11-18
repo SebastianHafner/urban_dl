@@ -98,18 +98,22 @@ def train_sar_teacher(cfg, sar_cfg):
 
             if not is_labeled.all():
                 not_labeled = torch.logical_not(is_labeled)
-                probs = torch.sigmoid(logits[not_labeled, ])
+                output = torch.sigmoid(logits[not_labeled, ])
                 with torch.no_grad():
                     probs_sar = torch.sigmoid(sar_net(x_sar[not_labeled, ]))
+                    if cfg.CONSISTENCY_TRAINER.APPLY_THRESHOLD:
+                        output_sar = (probs_sar > sar_cfg.INFERENCE.THRESHOLDS.VALIDATION).float()
+                    else:
+                        output_sar = probs_sar
                 # mean square error
                 # TODO: test intersection over union as consistency loss
-                consistency_loss = torch.div(torch.sum(torch.pow(probs - probs_sar, 2)), torch.numel(probs))
+                consistency_loss = torch.div(torch.sum(torch.pow(output - output_sar, 2)), torch.numel(output))
                 consistency_loss_set.append(consistency_loss.item())
 
             if loss is None and consistency_loss is not None:
-                loss = consistency_loss
+                loss = cfg.CONSISTENCY_TRAINER.LOSS_FACTOR * consistency_loss
             elif loss is not None and consistency_loss is not None:
-                loss = loss + consistency_loss
+                loss = loss + cfg.CONSISTENCY_TRAINER.LOSS_FACTOR * consistency_loss
             else:
                 loss = loss
 

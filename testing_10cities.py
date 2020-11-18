@@ -78,17 +78,28 @@ def patches2png(site: str, sensor: str, band_indices: list, rescale_factor: floa
             arr[i:i+m, j:j+n, ] = patch[:, :, band_indices]
         else:
             for b in range(3):
-                arr[i:i + patch_size, j:j + patch_size, b] = patch[:, :, band_indices]
+                arr[i:i+m, j:j+n, b:b+1] = patch[:, :, band_indices]
 
     plt.imshow(np.clip(arr / rescale_factor, 0, 1))
+    plt.axis('off')
     save_file = save_path / f'{site}_{sensor}.png'
     plt.savefig(save_file, dpi=300, bbox_inches='tight')
 
 
 if __name__ == '__main__':
-    config_name = 'sar'
-    cities = ['stockholm', 'beijing', 'jakarta', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai', 'riodejanairo',
-              'sidney']
-    for city in cities:
-        patches2png(city, 'sentinel2', [2, 1, 0], 0.4)
-        # run_inference(config_name, city)
+    # config_name = 'sar'
+    # cities = ['stockholm', 'beijing', 'jakarta', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai', 'riodejanairo',
+    #           'sidney']
+    # for city in cities:
+    #     patches2png(city, 'sentinel2', [2, 1, 0], 0.4)
+    #     # run_inference(config_name, city)
+
+    all_sites = ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
+        'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
+        'charlston', 'seattle', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson', 'houston', 'sanfrancisco',
+        'vancouver', 'newyork', 'calgary', 'kampala', 'stockholm', 'beijing', 'jakarta',
+        'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'sidney'
+    ]
+    for site in all_sites:
+        for sensor, indices, factor in zip(['sentinel1', 'sentinel2'], [[0], [2, 1, 0]], [1, 0.4]):
+            patches2png(site, sensor, indices, factor)

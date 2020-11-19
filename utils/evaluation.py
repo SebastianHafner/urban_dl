@@ -1,0 +1,152 @@
+import torch
+from torch.utils import data as torch_data
+import numpy as np
+import wandb
+from tqdm import tqdm
+from utils import datasets, metrics
+
+
+# specific threshold creates an additional log for that threshold
+# can be used to apply best training threshold to validation set
+def model_evaluation(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: int, step: int,
+               max_samples: int = 1000, specific_index: int = None):
+    y_true_set = []
+    y_pred_set = []
+
+    thresholds = thresholds.to(device)
+    measurer = metrics.MultiThresholdMetric(thresholds)
+
+    def evaluate(y_true, y_pred):
+        y_true = y_true.detach()
+        y_pred = y_pred.detach()
+        y_true_set.append(y_true.cpu())
+        y_pred_set.append(y_pred.cpu())
+
+        measurer.add_sample(y_true, y_pred)
+
+    dataset = datasets.UrbanExtractionDataset(cfg=cfg, dataset=run_type, no_augmentations=True)
+    inference_loop(net, cfg, device, evaluate, max_samples=max_samples, dataset=dataset)
+
+    print(f'Computing {run_type} F1 score ', end=' ', flush=True)
+
+    f1s = measurer.compute_f1()
+    precisions, recalls = measurer.precision, measurer.recall
+
+    # best f1 score for passed thresholds
+    f1 = f1s.max()
+    argmax_f1 = f1s.argmax()
+
+    best_thresh = thresholds[argmax_f1]
+    precision = precisions[argmax_f1]
+    recall = recalls[argmax_f1]
+
+    print(f'{f1.item():.3f}', flush=True)
+
+    if specific_index is not None:
+        specific_f1 = f1s[specific_index]
+        specific_thresh = thresholds[specific_index]
+        specific_precision = precisions[specific_index]
+        specific_recall = recalls[specific_index]
+        if not cfg.DEBUG:
+            wandb.log({f'{run_type} specific F1': specific_f1,
+                       f'{run_type} specific threshold': specific_thresh,
+                       f'{run_type} specific precision': specific_precision,
+                       f'{run_type} specific recall': specific_recall,
+                       'step': step, 'epoch': epoch,
+                       })
+
+    if not cfg.DEBUG:
+        wandb.log({f'{run_type} F1': f1,
+                   f'{run_type} threshold': best_thresh,
+                   f'{run_type} precision': precision,
+                   f'{run_type} recall': recall,
+                   'step': step, 'epoch': epoch,
+                   })
+
+    return argmax_f1.item()
+
+
+def model_testing(net, cfg, device, threshold, epoch, step):
+
+    # loading dataset
+    dataset = datasets.SpaceNet7Dataset(cfg)
+    groups = dataset.group_names
+
+    y_true_dict = {'total': np.array([])}
+    y_pred_dict = {'total': np.array([])}
+
+    # def testing_callback(y_true, y_pred):
+    #     y_true = y_true.detach()
+    #     y_pred = y_pred.detach()
+    #     y_true_set.append(y_true.cpu())
+    #     y_pred_set.append(y_pred.cpu())
+
+    for index in tqdm(range(len(dataset))):
+        sample = dataset.__getitem__(index)
+
+        with torch.no_grad():
+            x = sample['x'].to(device)
+            y_true = sample['y'].to(device)
+            logits = net(x.unsqueeze(0))
+            y_pred = torch.sigmoid(logits) > threshold
+
+            y_true = y_true.detach().cpu().flatten().numpy()
+            y_pred = y_pred.detach().cpu().flatten().numpy()
+
+            group_name = sample['group_name']
+            if group_name not in y_true_dict.keys():
+                y_true_dict[group_name] = y_true
+                y_pred_dict[group_name] = y_pred
+            else:
+                y_true_dict[group_name] = np.concatenate((y_true_dict[group_name], y_true))
+                y_pred_dict[group_name] = np.concatenate((y_pred_dict[group_name], y_pred))
+
+            y_true_dict['total'] = np.concatenate((y_true_dict['total'], y_true))
+            y_pred_dict['total'] = np.concatenate((y_pred_dict['total'], y_pred))
+
+    for group_index, group_name in dataset.group_names.items():
+        group_y_true = torch.Tensor(np.array(y_true_dict[group_name]))
+        group_y_pred = torch.Tensor(np.array(y_pred_dict[group_name]))
+        prec = metrics.precision(group_y_true, group_y_pred, dim=0).item()
+        rec = metrics.recall(group_y_true, group_y_pred, dim=0).item()
+        f1 = metrics.f1_score(group_y_true, group_y_pred, dim=0).item()
+
+        if not cfg.DEBUG:
+            wandb.log({f'{group_name} F1': f1,
+                       f'{group_name} precision': prec,
+                       f'{group_name} recall': rec,
+                       'step': step, 'epoch': epoch,
+                       })
+
+
+
+
+def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=999999999,
+                   dataset=None, callback_include_x=False):
+    net.to(device)
+    net.eval()
+
+    # reset the generators
+    num_workers = 0 if cfg.DEBUG else cfg.DATALOADER.NUM_WORKER
+    dataloader = torch_data.DataLoader(dataset, batch_size=batch_size, num_workers=num_workers,
+                                       shuffle=True, drop_last=True)
+    dataset_length = np.minimum(len(dataset), max_samples)
+    with torch.no_grad():
+        for step, batch in enumerate(tqdm(dataloader)):
+            if step == dataset_length:
+                break
+
+            imgs = batch['x'].to(device)
+            y_label = batch['y'].to(device)
+
+            y_pred = net(imgs)
+            y_pred = torch.sigmoid(y_pred)
+
+            if callback:
+                if callback_include_x:
+                    callback(imgs, y_label, y_pred)
+                else:
+                    callback(y_label, y_pred)
+
+            if cfg.DEBUG:
+                break

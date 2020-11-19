@@ -538,11 +538,12 @@ class SceneInferenceDataset(torch.utils.data.Dataset):
 # dataset for classifying a scene
 class TilesInferenceDataset(torch.utils.data.Dataset):
 
-    def __init__(self, cfg, site: str):
+    def __init__(self, cfg, site: str, patch_size: int = 256):
         super().__init__()
 
         self.cfg = cfg
         self.site = site
+        self.patch_size = patch_size
         self.root_dir = Path(cfg.DATASETS.PATH)
         self.transform = transforms.Compose([Numpy2Torch()])
 
@@ -553,74 +554,94 @@ class TilesInferenceDataset(torch.utils.data.Dataset):
         self.length = len(self.samples)
 
         # computing extent
-
+        patch_ids = [s['patch_id'] for s in self.samples]
+        self.coords = [[int(c) for c in patch_id.split('-')] for patch_id in patch_ids]
+        self.max_y = max([c[0] for c in self.coords])
+        self.max_x = max([c[1] for c in self.coords])
 
         # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
         self.s1_indices = self._get_indices(metadata['sentinel1_features'], cfg.DATALOADER.SENTINEL1_BANDS)
         self.s2_indices = self._get_indices(metadata['sentinel2_features'], cfg.DATALOADER.SENTINEL2_BANDS)
+        if cfg.DATALOADER.MODE == 'sar':
+            self.n_features = len(self.s1_indices)
+        elif cfg.DATALOADER.MODE == 'optical':
+            self.n_features = len(self.s2_indices)
+        else:
+            self.n_features = len(self.s1_indices) + len(self.s2_indices)
 
     def __getitem__(self, index):
 
         # loading metadata of sample
         sample = self.samples[index]
-        patch_id = sample['patch_id']
+        patch_id_center = sample['patch_id']
 
-        # loading images
-        mode = self.cfg.DATALOADER.MODE
-        if mode == 'optical':
-            img, geotransform, crs = self._get_sentinel2_data(patch_id)
-        elif mode == 'sar':
-            img, geotransform, crs = self._get_sentinel1_data(patch_id)
-        else:  # fusion baby!!!
-            s1_img, geotransform, crs = self._get_sentinel1_data(patch_id)
-            s2_img, _, _ = self._get_sentinel2_data(patch_id)
-            img = np.concatenate([s1_img, s2_img], axis=-1)
+        y_center, x_center = patch_id_center.split('-')
+        y_center, x_center = int(y_center), int(x_center)
 
-        img, _ = self.transform((img, np.zeros((img.shape[0], img.shape[1], 1), dtype=np.float32)))
+        if y_center == 0 or x_center == 0:
+            extended_img = np.zeros((3 * self.patch_size, 3 * self.patch_size, self.n_features), dtype=np.float32)
+        elif y_center == self.max_y or x_center == self.max_x:
+            extended_img = np.zeros((3 * self.patch_size, 3 * self.patch_size, self.n_features), dtype=np.float32)
+        else:
+            extended_img = np.zeros((3 * self.patch_size, 3 * self.patch_size, self.n_features), dtype=np.float32)
+            for i in range(3):
+                for j in range(3):
+                    y = y_center + (i - 1) * self.patch_size
+                    x = x_center + (j - 1) * self.patch_size
+                    patch_id = f'{y:010d}-{x:010d}'
+                    img = self._load_img(patch_id)
+                    i_start = i * self.patch_size
+                    i_end = (i + 1) * self.patch_size
+                    j_start = j * self.patch_size
+                    j_end = (j + 1) * self.patch_size
+                    extended_img[i_start:i_end, j_start:j_end, :] = img
+
+        dummy_label = np.zeros((extended_img.shape[0], extended_img.shape[1], 1), dtype=np.float32)
+        extended_img, _ = self.transform((extended_img, dummy_label))
 
         item = {
-            'x': img,
-            'x_teacher': img,
-            'y': label,
-            'is_labeled': label_exists,
-            'site': site,
-            'patch_id': patch_id,
-            'image_weight': np.float(sample['img_weight'])
+            'x': extended_img,
+            'i': y_center,
+            'j': x_center,
+            'site': self.site,
+            'patch_id': patch_id_center,
         }
-
-        if self.include_projection:
-            item['transform'] = geotransform
-            item['crs'] = crs
 
         return item
 
-    def _get_sentinel1_data(self, site, patch_id):
-        file = self.root_dir / site / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
+    def _load_img(self, patch_id):
+        mode = self.cfg.DATALOADER.MODE
+        if mode == 'optical':
+            img, _, _ = self._get_sentinel2_data(patch_id)
+        elif mode == 'sar':
+            img, _, _ = self._get_sentinel1_data(patch_id)
+        else:  # fusion baby!!!
+            s1_img, _, _ = self._get_sentinel1_data(patch_id)
+            s2_img, _, _ = self._get_sentinel2_data(patch_id)
+            img = np.concatenate([s1_img, s2_img], axis=-1)
+        return img
+
+    def _get_sentinel1_data(self, patch_id):
+        file = self.root_dir / self.site / 'sentinel1' / f'sentinel1_{self.site}_{patch_id}.tif'
         img, transform, crs = read_tif(file)
         img = img[:, :, self.s1_indices]
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
-    def _get_sentinel2_data(self, site, patch_id):
-        file = self.root_dir / site / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
+    def _get_sentinel2_data(self, patch_id):
+        file = self.root_dir / self.site / 'sentinel2' / f'sentinel2_{self.site}_{patch_id}.tif'
         img, transform, crs = read_tif(file)
         img = img[:, :, self.s2_indices]
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
-    def _get_auxiliary_data(self, aux_input, site, patch_id):
-        file = self.root_dir / site / aux_input / f'{aux_input}_{site}_{patch_id}.tif'
-        img, transform, crs = read_tif(file)
-        return np.nan_to_num(img).astype(np.float32), transform, crs
+    def get_arr(self, dtype=np.uint8):
+        height = self.max_y + self.patch_size
+        width = self.max_x + self.patch_size
+        return np.zeros((height, width, 1), dtype=dtype)
 
-    def _get_label_data(self, site, patch_id):
-        label = self.cfg.DATALOADER.LABEL
-        threshold = self.cfg.DATALOADER.LABEL_THRESH
-
-        label_file = self.root_dir / site / label / f'{label}_{site}_{patch_id}.tif'
-        img, transform, crs = read_tif(label_file)
-        if threshold >= 0:
-            img = img > threshold
-
-        return np.nan_to_num(img).astype(np.float32), transform, crs
+    def get_geo(self):
+        patch_id = f'{0:010d}-{0:010d}'
+        _, transform, crs = self._get_sentinel1_data(patch_id)
+        return transform, crs
 
     @staticmethod
     def _get_indices(bands, selection):

@@ -1,5 +1,5 @@
 _BASE_: "optical.yaml"
-DEBUG: False
+DEBUG: True
 INFERENCE:
   CHECKPOINT: 50
   THRESHOLDS:
@@ -9,6 +9,7 @@ INFERENCE:
 MODEL:
   TYPE: 'unet'
   IN_CHANNELS: 10
+
 
 DATALOADER:
   MODE: 'optical'

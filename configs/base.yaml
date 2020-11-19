@@ -39,7 +39,7 @@ DATASETS:
              'charlston', 'seattle', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson', 'kampala', 'houston']
   VALIDATION: ['sanfrancisco', 'vancouver', 'newyork', 'calgary']
   UNLABELED: ['stockholm', 'beijing', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'sidney']
-  TESTING: '/storage/shafner/urban_extraction/urban_extraction_dataset_version4/sn7/'
+  TESTING: '/storage/shafner/urban_extraction/urban_extraction_dataset/sn7/'
 
 TRAINER:
   LR: 1e-5
@@ -57,4 +57,4 @@ AUGMENTATION:
 CONSISTENCY_TRAINER:
   LOSS_FACTOR: 1
   APPLY_THRESHOLD: False
-  CONSISTENCY_LOSS: 'MeanSquareErrorLoss'
+  CONSISTENCY_LOSS_TYPE: 'MeanSquareErrorLoss'

@@ -66,11 +66,12 @@ def model_evaluation(net, cfg, device, thresholds: torch.Tensor, run_type: str, 
     return argmax_f1.item()
 
 
-def model_testing(net, cfg, device, threshold, epoch, step):
+def model_testing(net, cfg, device, argmax, epoch, step):
+
+    threshold = argmax / 100
 
     # loading dataset
     dataset = datasets.SpaceNet7Dataset(cfg)
-    groups = dataset.group_names
 
     y_true_dict = {'total': np.array([])}
     y_pred_dict = {'total': np.array([])}
@@ -117,8 +118,6 @@ def model_testing(net, cfg, device, threshold, epoch, step):
                        f'{group_name} recall': rec,
                        'step': step, 'epoch': epoch,
                        })
-
-
 
 
 def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=999999999,

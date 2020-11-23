@@ -109,6 +109,7 @@ if __name__ == '__main__':
     unlabeled_sites = ['stockholm', 'beijing', 'jakarta', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
                        'riodejanairo', 'sidney']
     all_sites = labeled_sites + unlabeled_sites
+    all_sites = ['kairo']
     for i, site in enumerate(all_sites):
         labeled = True if site in labeled_sites else False
         preprocess(dataset_path, site, labels_exist=labeled, patch_size=256)

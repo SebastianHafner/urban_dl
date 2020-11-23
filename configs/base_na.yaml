@@ -36,14 +36,13 @@ DATASETS:
   PATH: '/storage/shafner/urban_extraction/urban_extraction_dataset/'
   TRAINING: ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
              'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
-             'charlston', 'seattle', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson', 'kampala', 'houston']
+             'charlston', 'seattle', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson', 'houston']
   VALIDATION: ['sanfrancisco', 'vancouver', 'newyork', 'calgary']
-  UNLABELED: ['stockholm', 'beijing', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'sidney',
-              'kairo']
+  UNLABELED: ['stockholm', 'beijing', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'sidney']
   TESTING: '/storage/shafner/urban_extraction/urban_extraction_dataset/sn7/'
 
 TRAINER:
-  LR: 1e-5
+  LR: 5e-5
   BATCH_SIZE: 16
   EPOCHS: 51
   OPTIMIZER: 'adamw'

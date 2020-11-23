@@ -14,7 +14,6 @@ SN7_PATH = Path('/storage/shafner/spacenet7/train')
 METADATA_FILE = SN7_PATH.parent / 'sn7_metadata_v3.csv'
 
 
-
 def get_all_aoi_ids() -> list:
     return [f.name for f in SN7_PATH.iterdir() if f.is_dir()]
 
@@ -30,6 +29,7 @@ def fname2id(fname: str) -> tuple:
     fname_parts = fname.split('_')
     aoi_id = fname_parts[5]
     return aoi_id
+
 
 def get_available_dates(aoi_id: str) -> list:
     images_path = SN7_PATH / aoi_id / 'images'

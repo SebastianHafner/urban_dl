@@ -60,6 +60,11 @@ def basename_from_file(file: Path):
     return base_name
 
 
+def id2yx(patch_id: str) -> tuple:
+    y, x = patch_id.split('-')
+    return int(y), int(x)
+
+
 def combine_tif_patches(folder: Path, basename: str, delete_tiles: bool = False, dtype=np.int8):
     files = [f for f in folder.glob('**/*') if f.is_file() and basename_from_file(f) == basename]
     coords = [get_coords(f) for f in files]

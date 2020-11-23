@@ -41,8 +41,11 @@ def preprocess(path: Path, site: str, labels_exist: bool, patch_size: int = 256)
     s1_path = path / site / 'sentinel1'
     patches = [f.stem.split('_')[-1] for f in s1_path.glob('**/*')]
 
+    max_x, max_y = 0, 0
+
     samples = []
     for i, patch_id in enumerate(tqdm(patches)):
+
         sentinel1_file = path / site / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
         sentinel2_file = path / site / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
         files = [sentinel1_file, sentinel2_file]
@@ -55,8 +58,8 @@ def preprocess(path: Path, site: str, labels_exist: bool, patch_size: int = 256)
 
         valid = True
         for file in files:
-            if has_only_zeros(file):
-                raise Exception(f'only zeros {file.name}')
+            # if has_only_zeros(file):
+            #     raise Exception(f'only zeros {file.name}')
             arr, transform, crs = read_tif(file)
             m, n, _ = arr.shape
             if m != patch_size or n != patch_size:
@@ -74,12 +77,18 @@ def preprocess(path: Path, site: str, labels_exist: bool, patch_size: int = 256)
         }
         if valid:
             samples.append(sample)
+            y, x = id2yx(patch_id)
+            max_x = x if x > max_x else max_x
+            max_y = y if y > max_y else max_y
 
     # writing data to json file
     data = {
         'label': 'buildings',
         'site': site,
-        'sentinel1_features': ['VV_mean', 'VV_stdDev', 'VH_mean', 'VH_stdDev'],
+        'patch_size': patch_size,
+        'max_x': max_x,
+        'max_y': max_y,
+        'sentinel1_features': ['VV', 'VH'],
         'sentinel2_features': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'],
         'samples': samples
     }
@@ -100,21 +109,19 @@ def sites_split(sites: list, train_fraction: float):
 if __name__ == '__main__':
 
     # dataset_path = Path('C:/Users/shafner/urban_extraction/data/dummy_data')
-    dataset_path = Path('/storage/shafner/urban_extraction/urban_extraction_dataset')
+    dataset_path = Path('/storage/shafner/urban_extraction/urban_extraction_ghsl')
 
-    labeled_sites = ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
-                     'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
-                     'charlston', 'seattle', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson', 'houston',
-                     'sanfrancisco', 'vancouver', 'newyork', 'calgary', 'kampala']
-    unlabeled_sites = ['stockholm', 'beijing', 'jakarta', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
-                       'riodejanairo', 'sidney']
+    labeled_sites = ['albuquerque', 'atlanta', 'calgary', 'charlston', 'chicago', 'columbus', 'dallas', 'daressalam',
+                     'denver', 'elpaso', 'houston', 'kampala', 'kansascity', 'losangeles', 'miami', 'minneapolis',
+                     'montreal', 'mwanza', 'newyork', 'phoenix', 'quebec', 'saltlakecity', 'sandiego', 'sanfrancisco',
+                     'santafe', 'seattle', 'stgeorge', 'toronto', 'tucson', 'vancouver', 'winnipeg']
+    unlabeled_sites = ['beijing', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
+                       'riodejanairo', 'shanghai', 'sidney', 'stockholm']
     all_sites = labeled_sites + unlabeled_sites
-    all_sites = ['kairo']
     for i, site in enumerate(all_sites):
-        labeled = True if site in labeled_sites else False
-        preprocess(dataset_path, site, labels_exist=labeled, patch_size=256)
-
-    # sites_split(northamerican_sites, 0.8)
+        if i >= 0:
+            labeled = True if site in labeled_sites else False
+            preprocess(dataset_path, site, labels_exist=labeled, patch_size=256)
 
 
 

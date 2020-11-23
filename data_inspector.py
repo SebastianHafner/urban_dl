@@ -80,35 +80,44 @@ def show_patches(city: str, n: int):
         plt.close()
 
 
-def patches2png(site: str, sensor: str, band_indices: list, rescale_factor: float = 1, patch_size: int = 256):
+def patches2png_new(site: str, product: str, band_indices: list, rescale_factor: float = 1):
     # config inference directory
     save_path = ROOT_PATH / 'plots' / 'inspection'
     save_path.mkdir(exist_ok=True)
 
-    folder = ROOT_PATH / 'urban_extraction_dataset' / site / sensor
-    files = [f for f in folder.glob('**/*')]
+    # loading metadata and unpacking
+    folder = ROOT_PATH / 'urban_extraction_ghsl' / site
+    metadata = load_json(folder / 'samples.json')
+    patches, patch_size = metadata['samples'], metadata['patch_size']
+    max_x, max_y = metadata['max_x'], metadata['max_y']
 
-    files_per_side = int(np.ceil(np.sqrt(len(files))))
-    arr = np.zeros((files_per_side * patch_size, files_per_side * patch_size, 3))
-    for index, f in enumerate(tqdm(files)):
-        patch, _, _ = read_tif(f)
-        m, n, _ = patch.shape
-        i = (index // files_per_side) * patch_size
-        j = (index % files_per_side) * patch_size
+    # creating container for img
+    arr = np.zeros((max_y + patch_size, max_x + patch_size, 3))
+
+    # filling img
+    for index, patch in enumerate(tqdm(patches)):
+
+        patch_id = patch['patch_id']
+        patch_file = folder / sensor / f'{product}_{site}_{patch_id}.tif'
+
+        patch_data, _, _ = read_tif(patch_file)
+        y, x = id2yx(patch_id)
+
         if len(band_indices) == 3:
-            arr[i:i + m, j:j + n, ] = patch[:, :, band_indices]
+            arr[y:y+patch_size, x:x+patch_size, ] = patch_data[:, :, band_indices]
         else:
             for b in range(3):
-                arr[i:i + m, j:j + n, b:b + 1] = patch[:, :, band_indices]
+                arr[y:y + patch_size, x:x + patch_size, b:b + 1] = patch_data[:, :, band_indices]
 
     plt.imshow(np.clip(arr / rescale_factor, 0, 1))
     plt.axis('off')
     save_file = save_path / f'{site}_{sensor}.png'
     plt.savefig(save_file, dpi=300, bbox_inches='tight')
 
+
 if __name__ == '__main__':
 
-    show_patches('kigali', 20)
+    # show_patches('kigali', 20)
 
     # metadata = pd.read_csv(METADATA_FILE)
     # for index, row in metadata.iterrows():
@@ -123,13 +132,15 @@ if __name__ == '__main__':
     #
     #         title = f'{index} {aoi_id} {year}-{month:02d} ({country}, {group})'
     #         show_satellite_data_sn7(aoi_id, title)
-    all_sites = ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
-                 'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
-                 'charlston', 'seattle', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson', 'houston',
-                 'sanfrancisco',
-                 'vancouver', 'newyork', 'calgary', 'kampala', 'stockholm', 'beijing', 'jakarta',
-                 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'sidney'
-                 ]
-    for site in all_sites:
-        for sensor, indices, factor in zip(['sentinel1', 'sentinel2'], [[0], [2, 1, 0]], [1, 0.4]):
-            patches2png(site, sensor, indices, factor)
+    labeled_sites = ['albuquerque', 'atlanta', 'calgary', 'charlston', 'chicago', 'columbus', 'dallas', 'daressalam',
+                     'denver', 'elpaso', 'houston', 'kampala', 'kansascity', 'losangeles', 'miami', 'minneapolis',
+                     'montreal', 'mwanza', 'newyork', 'phoenix', 'quebec', 'saltlakecity', 'sandiego', 'sanfrancisco',
+                     'santafe', 'seattle', 'stgeorge', 'toronto', 'tucson', 'vancouver', 'winnipeg']
+    unlabeled_sites = ['beijing', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
+                       'riodejanairo', 'shanghai', 'sidney', 'stockholm']
+
+    for site in unlabeled_sites + labeled_sites:
+        for sensor, indices, factor in zip(['sentinel1', 'sentinel2'], [[0], [2, 1, 0]], [1, 0.3]):
+            patches2png_new(site, sensor, indices, factor)
+        if site in labeled_sites:
+            patches2png_new(site, 'buildings', [0], 1)

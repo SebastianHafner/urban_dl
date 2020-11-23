@@ -1,7 +1,7 @@
 SEED: 7
-DEBUG: False
+DEBUG: True
 OUTPUT_BASE_DIR: '/storage/shafner/urban_extraction/networks'
-SAVE_CHECKPOINTS: [25, 50]
+SAVE_CHECKPOINTS: [25, 50, 75, 100]
 INFERENCE:
   CHECKPOINT: 0
   THRESHOLDS:
@@ -27,25 +27,25 @@ DATALOADER:
   LABEL: 'buildings'
   LABEL_THRESH: 0.0
   MODE: 'fusion'
-  SENTINEL1_BANDS: ['VV_mean', 'VH_mean']
+  SENTINEL1_BANDS: ['VV', 'VH']
   SENTINEL2_BANDS: ['B2', 'B3', 'B4', 'B5', 'B6', 'B6', 'B8', 'B8A', 'B11', 'B12']
   AUXILIARY_INPUTS: []
   FUSION_DROPOUT: False
 
 DATASETS:
-  PATH: '/storage/shafner/urban_extraction/urban_extraction_dataset/'
-  TRAINING: ['denver', 'saltlakecity', 'phoenix', 'lasvegas', 'toronto', 'columbus', 'winnipeg', 'dallas',
-             'minneapolis', 'atlanta', 'miami', 'montreal', 'quebec', 'albuquerque', 'losangeles', 'kansascity',
-             'charlston', 'seattle', 'elpaso', 'sandiego', 'santafe', 'stgeorge', 'tucson', 'kampala', 'houston']
+  PATH: '/storage/shafner/urban_extraction/urban_extraction_ghsl/'
+  TRAINING: ['albuquerque', 'atlanta', 'charlston', 'columbus', 'dallas', 'denver', 'elpaso', 'houston',
+             'kansascity', 'losangeles', 'miami', 'minneapolis', 'montreal', 'phoenix', 'quebec', 'saltlakecity',
+             'sandiego', 'santafe', 'seattle', 'stgeorge', 'toronto', 'tucson', 'winnipeg']
   VALIDATION: ['sanfrancisco', 'vancouver', 'newyork', 'calgary']
-  UNLABELED: ['stockholm', 'beijing', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'sidney',
-              'kairo']
-  TESTING: '/storage/shafner/urban_extraction/urban_extraction_dataset/sn7/'
+  UNLABELED: ['beijing', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
+              'riodejanairo', 'shanghai', 'sidney', 'stockholm']
+  TESTING: '/storage/shafner/urban_extraction/urban_extraction_ghsl/sn7/'
 
 TRAINER:
   LR: 1e-5
-  BATCH_SIZE: 16
-  EPOCHS: 51
+  BATCH_SIZE: 8
+  EPOCHS: 101
   OPTIMIZER: 'adamw'
 
 AUGMENTATION:
@@ -56,6 +56,6 @@ AUGMENTATION:
   GAMMA_CORRECTION: False
 
 CONSISTENCY_TRAINER:
-  LOSS_FACTOR: 1
+  LOSS_FACTOR: 0.5
   APPLY_THRESHOLD: False
   CONSISTENCY_LOSS_TYPE: 'MeanSquareErrorLoss'

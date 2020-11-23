@@ -132,10 +132,10 @@ if __name__ == '__main__':
     #
     #         title = f'{index} {aoi_id} {year}-{month:02d} ({country}, {group})'
     #         show_satellite_data_sn7(aoi_id, title)
-    labeled_sites = ['albuquerque', 'atlanta', 'calgary', 'charlston', 'chicago', 'columbus', 'dallas', 'daressalam',
-                     'denver', 'elpaso', 'houston', 'kampala', 'kansascity', 'losangeles', 'miami', 'minneapolis',
-                     'montreal', 'mwanza', 'newyork', 'phoenix', 'quebec', 'saltlakecity', 'sandiego', 'sanfrancisco',
-                     'santafe', 'seattle', 'stgeorge', 'toronto', 'tucson', 'vancouver', 'winnipeg']
+    labeled_sites = ['albuquerque', 'atlanta', 'calgary', 'charlston', 'columbus', 'dallas', 'denver', 'elpaso',
+                     'houston', 'kansascity', 'lasvegas', 'losangeles', 'miami', 'minneapolis', 'montreal', 'newyork',
+                     'phoenix', 'quebec', 'saltlakecity', 'sandiego', 'sanfrancisco', 'santafe', 'seattle', 'stgeorge',
+                     'toronto', 'tucson', 'vancouver', 'winnipeg']
     unlabeled_sites = ['beijing', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
                        'riodejanairo', 'shanghai', 'sidney', 'stockholm']
 

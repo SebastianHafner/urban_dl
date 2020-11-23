@@ -35,9 +35,10 @@ DATALOADER:
 DATASETS:
   PATH: '/storage/shafner/urban_extraction/urban_extraction_ghsl/'
   TRAINING: ['albuquerque', 'atlanta', 'charlston', 'columbus', 'dallas', 'denver', 'elpaso', 'houston',
-             'kansascity', 'losangeles', 'miami', 'minneapolis', 'montreal', 'phoenix', 'quebec', 'saltlakecity',
-             'sandiego', 'santafe', 'seattle', 'stgeorge', 'toronto', 'tucson', 'winnipeg']
-  VALIDATION: ['sanfrancisco', 'vancouver', 'newyork', 'calgary']
+             'kansascity', 'lasvegas', 'losangeles', 'miami', 'minneapolis', 'montreal', 'phoenix',
+             'quebec', 'saltlakecity', 'sandiego', 'santafe', 'seattle', 'stgeorge', 'toronto',
+             'tucson', 'winnipeg']
+  VALIDATION: ['calgary', 'newyork', 'sanfrancisco', 'vancouver']
   UNLABELED: ['beijing', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
               'riodejanairo', 'shanghai', 'sidney', 'stockholm']
   TESTING: '/storage/shafner/urban_extraction/urban_extraction_ghsl/sn7/'

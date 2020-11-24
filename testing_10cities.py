@@ -2,7 +2,7 @@ from pathlib import Path
 import torch
 from networks.network_loader import load_network
 from experiment_manager.config import config
-from utils.dataloader import TilesInferenceDataset, UrbanExtractionDataset
+from utils.datasets import TilesInferenceDataset, UrbanExtractionDataset
 from utils.geotiff import *
 from tqdm import tqdm
 import shutil

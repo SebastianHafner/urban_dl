@@ -538,12 +538,11 @@ class SceneInferenceDataset(torch.utils.data.Dataset):
 # dataset for classifying a scene
 class TilesInferenceDataset(torch.utils.data.Dataset):
 
-    def __init__(self, cfg, site: str, patch_size: int = 256):
+    def __init__(self, cfg, site: str):
         super().__init__()
 
         self.cfg = cfg
         self.site = site
-        self.patch_size = patch_size
         self.root_dir = Path(cfg.DATASETS.PATH)
         self.transform = transforms.Compose([Numpy2Torch()])
 
@@ -552,6 +551,8 @@ class TilesInferenceDataset(torch.utils.data.Dataset):
         metadata = load_json(samples_file)
         self.samples = metadata['samples']
         self.length = len(self.samples)
+
+        self.patch_size = metadata['patch_size']
 
         # computing extent
         patch_ids = [s['patch_id'] for s in self.samples]

@@ -2,7 +2,7 @@ from pathlib import Path
 import torch
 from networks.network_loader import load_network
 from experiment_manager.config import config
-from utils.dataloader import InferenceDataset, UrbanExtractionDataset
+from utils.datasets import TilesInferenceDataset, UrbanExtractionDataset
 from utils.geotiff import write_tif, read_tif
 from tqdm import tqdm
 import numpy as np
@@ -25,7 +25,7 @@ def run_inference(config_name: str, checkpoint: int, s1_file: Path, s2_file: Pat
 
     # loading dataset from config (requires inference.json)
     patch_size = 256
-    dataset = InferenceDataset(cfg, s1_file=s1_file, s2_file=s2_file, patch_size=patch_size)
+    dataset = TilesInferenceDataset(cfg, s1_file=s1_file, s2_file=s2_file, patch_size=patch_size)
     pred = dataset.get_mask('uint8')
 
     with torch.no_grad():

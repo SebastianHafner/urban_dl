@@ -109,7 +109,7 @@ def sites_split(sites: list, train_fraction: float):
 if __name__ == '__main__':
 
     # dataset_path = Path('C:/Users/shafner/urban_extraction/data/dummy_data')
-    dataset_path = Path('/storage/shafner/urban_extraction/urban_extraction_ghsl')
+    dataset_path = Path('/storage/shafner/urban_extraction/urban_dataset')
 
     labeled_sites = ['albuquerque', 'atlanta', 'calgary', 'charlston', 'columbus', 'dallas', 'denver', 'elpaso',
                      'houston', 'kansascity', 'lasvegas', 'losangeles', 'miami', 'minneapolis', 'montreal', 'newyork',

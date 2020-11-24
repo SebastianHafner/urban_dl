@@ -33,7 +33,7 @@ DATALOADER:
   FUSION_DROPOUT: False
 
 DATASETS:
-  PATH: '/storage/shafner/urban_extraction/urban_extraction_ghsl/'
+  PATH: '/storage/shafner/urban_extraction/urban_dataset/'
   TRAINING: ['albuquerque', 'atlanta', 'charlston', 'columbus', 'dallas', 'denver', 'elpaso', 'houston',
              'kansascity', 'lasvegas', 'losangeles', 'miami', 'minneapolis', 'montreal', 'phoenix',
              'quebec', 'saltlakecity', 'sandiego', 'santafe', 'seattle', 'stgeorge', 'toronto',

@@ -10,7 +10,7 @@ import pandas as pd
 from tqdm import tqdm
 
 ROOT_PATH = Path('/storage/shafner/urban_extraction')
-DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction_dataset')
+DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_dataset')
 METADATA_FILE = Path('C:/Users/shafner/urban_extraction/data/spacenet7/sn7_metadata_v3.csv')
 
 GROUPS = {1: 'NA_AU', 2: 'SA', 3: 'EU', 4: 'SSA', 5: 'NAF_ME', 6: 'AS'}
@@ -86,7 +86,7 @@ def patches2png_new(site: str, product: str, band_indices: list, rescale_factor:
     save_path.mkdir(exist_ok=True)
 
     # loading metadata and unpacking
-    folder = ROOT_PATH / 'urban_extraction_ghsl' / site
+    folder = ROOT_PATH / 'urban_dataset' / site
     metadata = load_json(folder / 'samples.json')
     patches, patch_size = metadata['samples'], metadata['patch_size']
     max_x, max_y = metadata['max_x'], metadata['max_y']
@@ -98,7 +98,7 @@ def patches2png_new(site: str, product: str, band_indices: list, rescale_factor:
     for index, patch in enumerate(tqdm(patches)):
 
         patch_id = patch['patch_id']
-        patch_file = folder / sensor / f'{product}_{site}_{patch_id}.tif'
+        patch_file = folder / product / f'{product}_{site}_{patch_id}.tif'
 
         patch_data, _, _ = read_tif(patch_file)
         y, x = id2yx(patch_id)
@@ -111,7 +111,7 @@ def patches2png_new(site: str, product: str, band_indices: list, rescale_factor:
 
     plt.imshow(np.clip(arr / rescale_factor, 0, 1))
     plt.axis('off')
-    save_file = save_path / f'{site}_{sensor}.png'
+    save_file = save_path / f'{site}_{product}.png'
     plt.savefig(save_file, dpi=300, bbox_inches='tight')
 
 
@@ -139,7 +139,7 @@ if __name__ == '__main__':
     unlabeled_sites = ['beijing', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
                        'riodejanairo', 'shanghai', 'sidney', 'stockholm']
 
-    for site in unlabeled_sites + labeled_sites:
+    for site in labeled_sites + unlabeled_sites:
         for sensor, indices, factor in zip(['sentinel1', 'sentinel2'], [[0], [2, 1, 0]], [1, 0.3]):
             patches2png_new(site, sensor, indices, factor)
         if site in labeled_sites:

@@ -143,9 +143,9 @@ def train_mean_teacher(net, cfg):
         # evaluation on sample of training and validation set after ever epoch
         thresholds = torch.linspace(0, 1, 101)
         train_argmaxF1 = model_evaluation(teacher_net, cfg, device, thresholds, 'training', epoch,
-                                                       global_step, max_samples=10_000)
+                                                       global_step, max_samples=1_000)
         _ = model_evaluation(teacher_net, cfg, device, thresholds, 'validation', epoch, global_step,
-                             specific_index=train_argmaxF1, max_samples=10_000)
+                             specific_index=train_argmaxF1, max_samples=1_000)
 
         # updating best validation f1 score
         if epoch in save_checkpoints:

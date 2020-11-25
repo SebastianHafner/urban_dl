@@ -12,3 +12,4 @@ MODEL:
 
 DATALOADER:
   MODE: 'fusion'
+  FUSION_DROPOUT: True

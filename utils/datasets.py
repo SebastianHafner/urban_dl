@@ -155,9 +155,9 @@ class MTUrbanExtractionDataset(torch.utils.data.Dataset):
 
         self.dataset = dataset
         if dataset == 'training':
-            self.sites = cfg.DATASETS.SITES.TRAINING
+            self.sites = list(cfg.DATASETS.TRAINING)
         elif dataset == 'validation':
-            self.sites = cfg.DATASETS.SITES.VALIDATION
+            self.sites = list(cfg.DATASETS.VALIDATION)
         else:  # used to load only 1 city passed as dataset
             self.sites = [dataset]
 

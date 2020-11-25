@@ -41,10 +41,10 @@ DATASETS:
   VALIDATION: ['calgary', 'newyork', 'sanfrancisco', 'vancouver']
   UNLABELED: ['beijing', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
               'riodejanairo', 'shanghai', 'sidney', 'stockholm']
-  TESTING: '/storage/shafner/urban_extraction/urban_extraction_ghsl/sn7/'
+  TESTING: '/storage/shafner/urban_extraction/urban_dataset/sn7/'
 
 TRAINER:
-  LR: 1e-5
+  LR: 1e-4
   BATCH_SIZE: 8
   EPOCHS: 101
   OPTIMIZER: 'adamw'

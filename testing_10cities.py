@@ -2,7 +2,7 @@ from pathlib import Path
 import torch
 from networks.network_loader import load_network
 from experiment_manager.config import config
-from utils.dataloader import TilesInferenceDataset, UrbanExtractionDataset
+from utils.datasets import TilesInferenceDataset, UrbanExtractionDataset
 from utils.geotiff import *
 from tqdm import tqdm
 import shutil
@@ -99,8 +99,8 @@ def run_inference_new(config_name: str, site: str):
 
 
 if __name__ == '__main__':
-    config_name = 'sar'
-    cities = ['stockholm', 'beijing', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'sidney']
+    config_name = 'optical'
+    cities = ['stockholm', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'sidney']
     for city in cities:
         run_inference_new(config_name, city)
 

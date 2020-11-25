@@ -100,7 +100,7 @@ def run_inference_new(config_name: str, site: str):
 
 if __name__ == '__main__':
     config_name = 'sar'
-    cities = ['stockholm', 'beijing', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'sidney']
+    cities = ['stockholm', 'jakarta', 'kigali', 'mexicocity', 'milano', 'mumbai', 'riodejanairo', 'sidney']
     for city in cities:
         run_inference_new(config_name, city)
 

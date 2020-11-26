@@ -1,10 +1,6 @@
 import sys
-from os import path
 from pathlib import Path
 import os
-from argparse import ArgumentParser
-import datetime
-import enum
 import timeit
 
 import torch
@@ -17,16 +13,13 @@ import wandb
 
 from networks.network_loader import create_network
 
-from utils.datasets import MTUrbanExtractionDataset
+from utils.datasets import UrbanExtractionDataset
 from utils.augmentations import *
-from utils.metrics import MultiThresholdMetric
 from utils.loss import get_criterion
 from utils.evaluation import model_evaluation, model_testing
 
 from experiment_manager.args import default_argument_parser
 from experiment_manager.config import new_config
-
-from tqdm import tqdm
 
 
 def train_mean_teacher(net, cfg):
@@ -55,7 +48,7 @@ def train_mean_teacher(net, cfg):
     teacher_net.to(device)
     consistency_criterion = get_criterion(cfg.CONSISTENCY_TRAINER.CONSISTENCY_LOSS_TYPE)
 
-    dataset = MTUrbanExtractionDataset(cfg=cfg, dataset='training')
+    dataset = UrbanExtractionDataset(cfg=cfg, dataset='training', include_unlabeled=False)
     print(dataset)
     dataloader_kwargs = {
         'batch_size': cfg.TRAINER.BATCH_SIZE,
@@ -69,6 +62,7 @@ def train_mean_teacher(net, cfg):
     # unpacking cfg
     epochs = cfg.TRAINER.EPOCHS
     save_checkpoints = cfg.SAVE_CHECKPOINTS
+    steps_per_epoch = len(dataset) // cfg.TRAINER.BATCH_SIZE
 
     # tracking variables
     global_step = 0
@@ -77,28 +71,29 @@ def train_mean_teacher(net, cfg):
         print(f'Starting epoch {epoch + 1}/{epochs}.')
 
         start = timeit.default_timer()
-        loss_set = []
-        supervised_loss_set = []
-        consistency_loss_set = []
+        loss_set, supervised_loss_set, consistency_loss_set = [], [], []
+        n_labeled, n_notlabeled = 0, 0
 
         student_net.train()
+        teacher_net.eval()
 
-        for i, batch in enumerate(tqdm(dataloader)):
+        for i, batch in enumerate(dataloader):
             optimizer.zero_grad()
 
-            x_student = batch['x_student'].to(device)
-            x_teacher = batch['x_teacher'].to(device)
+            x = batch['x'].to(device)
             y_gts = batch['y'].to(device)
             is_labeled = batch['is_labeled']
 
-            logits_student = student_net(x_student)
-            logits_teacher = teacher_net(x_teacher)
+            logits_student = student_net(x)
+            logits_teacher = teacher_net(x)
+            logits_teacher = logits_teacher.detach()
 
             supervised_loss, consistency_loss = None, None
 
             if is_labeled.any():
                 supervised_loss = supervised_criterion(logits_student[is_labeled, ], y_gts[is_labeled])
                 supervised_loss_set.append(supervised_loss.item())
+                n_labeled += torch.sum(is_labeled).item()
 
             if not is_labeled.all():
                 not_labeled = torch.logical_not(is_labeled)
@@ -116,39 +111,45 @@ def train_mean_teacher(net, cfg):
             loss_set.append(loss.item())
             loss.backward()
             optimizer.step()
-
             global_step += 1
+            epoch_float = global_step / steps_per_epoch
 
             # update teacher after each step
             update_teacher_net(student_net, teacher_net, alpha=1, global_step=global_step)
+
+            if global_step % cfg.LOG_FREQ == 0 and not cfg.DEBUG:
+                print(f'Logging step {global_step} (epoch {epoch_float:.2f}).')
+
+                # evaluation on sample of training and validation set
+                thresholds = torch.linspace(0, 1, 101)
+                train_argmaxF1 = model_evaluation(student_net, cfg, device, thresholds, 'training', epoch_float,
+                                                  global_step, max_samples=1_000)
+                _ = model_evaluation(student_net, cfg, device, thresholds, 'validation', epoch_float, global_step,
+                                     specific_index=train_argmaxF1, max_samples=1_000)
+
+                # logging
+                time = timeit.default_timer() - start
+                labeled_percentage = n_labeled / (n_labeled + n_notlabeled)
+                wandb.log({
+                    'loss': np.mean(loss_set),
+                    'supervised_loss': 0 if len(supervised_loss_set) == 0 else np.mean(supervised_loss_set),
+                    'consistency_loss': 0 if len(consistency_loss_set) == 0 else np.mean(consistency_loss_set),
+                    'labeled_percentage': labeled_percentage,
+                    'time': time,
+                    'step': global_step,
+                    'epoch': epoch_float,
+                })
+
+                # resetting stuff
+                start = timeit.default_timer()
+                n_labeled, n_notlabeled = 0, 0
 
             if cfg.DEBUG:
                 break
             # end of batch
 
-        stop = timeit.default_timer()
-        time_per_epoch = stop - start
-        max_mem, max_cache = gpu_stats()
-
-        if not cfg.DEBUG:
-            wandb.log({
-                'avg_loss': np.mean(loss_set),
-                'avg_supervised_loss': np.mean(supervised_loss_set),
-                'avg_consistency_loss': np.mean(consistency_loss_set),
-                'gpu_memory': max_mem,
-                'time': time_per_epoch,
-                'step': global_step,
-            })
-
-        # evaluation on sample of training and validation set after ever epoch
-        thresholds = torch.linspace(0, 1, 101)
-        train_argmaxF1 = model_evaluation(teacher_net, cfg, device, thresholds, 'training', epoch,
-                                                       global_step, max_samples=1_000)
-        _ = model_evaluation(teacher_net, cfg, device, thresholds, 'validation', epoch, global_step,
-                             specific_index=train_argmaxF1, max_samples=1_000)
-
-        # updating best validation f1 score
-        if epoch in save_checkpoints:
+        # saving network
+        if epoch in save_checkpoints and not cfg.DEBUG:
             print(f'saving network', flush=True)
             net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}_{epoch}.pkl'
             torch.save(teacher_net.state_dict(), net_file)

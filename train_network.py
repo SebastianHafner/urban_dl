@@ -116,8 +116,7 @@ def train_net(net, cfg):
 
         if not cfg.DEBUG:
             wandb.log({
-                'loss': loss.item(),
-                'avg_loss': np.mean(loss_set),
+                'loss': np.mean(loss_set),
                 'gpu_memory': max_mem,
                 'time': time_per_epoch,
                 'total_positive_pixels': np.mean(positive_pixels_set),
@@ -128,9 +127,9 @@ def train_net(net, cfg):
         # evaluation on sample of training and validation set after ever epoch
         thresholds = torch.linspace(0, 1, 101)
         train_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'training', epoch, global_step,
-                                          max_samples=10_000)
+                                          max_samples=1_000)
         _ = model_evaluation(net, cfg, device, thresholds, 'validation', epoch, global_step,
-                             specific_index=train_argmaxF1, max_samples=10_000)
+                             specific_index=train_argmaxF1, max_samples=1_000)
 
         if epoch in save_checkpoints:
             print(f'saving network', flush=True)

@@ -42,6 +42,7 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
             s1_bands = metadata['sentinel1_features']
             s2_bands = metadata['sentinel2_features']
         self.length = len(self.samples)
+        self.n_labeled = len([s for s in self.samples if s['is_labeled']])
 
         self.include_projection = include_projection
 
@@ -140,7 +141,8 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         return self.length
 
     def __str__(self):
-        return f'Dataset with {self.length} samples across {len(self.sites)} sites.'
+        labeled_perc = self.n_labeled / self.length * 100
+        return f'Dataset with {self.length} samples ({labeled_perc:.1f} % labeled) across {len(self.sites)} sites.'
 
 
 # dataset for urban extraction with building footprints
@@ -172,6 +174,7 @@ class MTUrbanExtractionDataset(torch.utils.data.Dataset):
             s1_bands = metadata['sentinel1_features']
             s2_bands = metadata['sentinel2_features']
         self.length = len(self.samples)
+        self.n_labeled = len([s for s in self.samples if s['is_labeled']])
 
         self.include_projection = include_projection
 
@@ -220,8 +223,7 @@ class MTUrbanExtractionDataset(torch.utils.data.Dataset):
         img, label = self.transform((img, label))
 
         item = {
-            'x_student': img,
-            'x_teacher': img,
+            'x': img,
             'y': label,
             'is_labeled': label_exists,
             'site': site,
@@ -271,7 +273,8 @@ class MTUrbanExtractionDataset(torch.utils.data.Dataset):
         return self.length
 
     def __str__(self):
-        return f'Dataset with {self.length} samples across {len(self.sites)} sites.'
+        lperc = self.n_labeled / self.length * 100
+        return f'Dataset with {self.length} samples ({lperc:.1f} % labeled) across {len(self.sites)} sites.'
 
 
 # dataset for urban extraction with building footprints

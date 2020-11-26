@@ -130,9 +130,9 @@ def train_sar_teacher(cfg, sar_cfg):
 
         if not cfg.DEBUG:
             wandb.log({
-                'avg_loss': np.mean(loss_set),
-                'avg_loss_sar': np.mean(sar_loss_set),
-                'avg_consistency_loss': np.mean(consistency_loss_set),
+                'loss': np.mean(loss_set),
+                'loss_sar': np.mean(sar_loss_set),
+                'consistency_loss': np.mean(consistency_loss_set),
                 'gpu_memory': max_mem,
                 'time': time_per_epoch,
                 'step': global_step,

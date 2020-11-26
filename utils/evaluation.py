@@ -66,7 +66,7 @@ def model_evaluation(net, cfg, device, thresholds: torch.Tensor, run_type: str, 
     return argmax_f1.item()
 
 
-def model_testing(net, cfg, device, argmax, epoch, step):
+def model_testing(net, cfg, device, argmax, step, epoch):
 
     threshold = argmax / 100
 

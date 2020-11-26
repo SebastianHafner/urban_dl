@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from utils.visualization import *
 
-SN7_PATH = Path('C:/Users/shafner/urban_extraction/data/spacenet7/train')
+
 SN7_PATH = Path('/storage/shafner/spacenet7/train')
 METADATA_FILE = SN7_PATH.parent / 'sn7_metadata_v3.csv'
 
@@ -53,6 +53,7 @@ def get_geo(aoi_id: str):
     image_file = [f for f in images_path.glob('**/*')][0]
     _, transform, crs = read_tif(image_file)
     return transform, crs
+
 
 # converts list of geojson polygons in pixel coordinates to raster image
 def polygons2raster(polygons: list, shape: tuple = (1024, 1024)) -> np.ndarray:
@@ -156,7 +157,7 @@ def construct_buildings_file(metadata_file: Path):
         json.dump(merged_buildings, f, ensure_ascii=False, indent=4)
 
 
-def construct_samples_file(metadata_file: Path):
+def construct_samples_file(metadata_file: Path, save_path: Path):
     metadata = pd.read_csv(metadata_file)
     samples = []
     for index, row in metadata.iterrows():
@@ -172,12 +173,12 @@ def construct_samples_file(metadata_file: Path):
     # writing data to json file
     data = {
         'label': 'buildings',
-        'sentinel1_features': ['VV_mean', 'VV_stdDev', 'VH_mean', 'VH_stdDev'],
+        'sentinel1_features': ['VV', 'VH'],
         'sentinel2_features': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'],
         'group_names': {'1': 'NA_AU', '2': 'SA', '3': 'EU', '4': 'SSA', '5': 'NAF_ME', '6': 'AS'},
         'samples': samples
     }
-    dataset_file = SN7_PATH.parent / f'samples.json'
+    dataset_file = save_path / f'samples.json'
     with open(str(dataset_file), 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
@@ -368,13 +369,14 @@ if __name__ == '__main__':
 
     test_aoi = 'L15-0571E-1075N_2287_3888_13'
 
-    for aoi_id in tqdm(get_all_aoi_ids()):
+    # for aoi_id in tqdm(get_all_aoi_ids()):
         # show_stable_building_pixels(aoi_id)
         # create_label_masks(aoi_id)
-        create_building_change_masks(aoi_id)
+        # create_building_change_masks(aoi_id)
     # show_stable_building_pixels(test_aoi)
     metadata_file = SN7_PATH.parent / 'sn7_metadata_v3.csv'
     # construct_reference_buildings_file(metadata_file)
 
     # construct_buildings_file(metadata_file)
-    # construct_samples_file(metadata_file)
+    samples_save_path = Path('/storage/shafner/urban_extraction/urban_dataset/sn7')
+    construct_samples_file(metadata_file, samples_save_path)

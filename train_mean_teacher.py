@@ -11,15 +11,15 @@ from torch.utils import data as torch_data
 from tabulate import tabulate
 import wandb
 
-from networks.network_loader import create_network
+from networks.network_loader import create_network, create_ema_network
 
 from utils.datasets import UrbanExtractionDataset
 from utils.augmentations import *
 from utils.loss import get_criterion
-from utils.evaluation import model_evaluation, model_testing
+from utils.evaluation import model_evaluation
 
 from experiment_manager.args import default_argument_parser
-from experiment_manager.config import new_config
+from experiment_manager.config import config
 
 
 def train_mean_teacher(net, cfg):
@@ -43,12 +43,12 @@ def train_mean_teacher(net, cfg):
         net = nn.DataParallel(net)
 
     student_net = net
-    teacher_net = create_teacher_net(student_net, cfg)
+    teacher_net = create_ema_network(student_net, cfg)
     student_net.to(device)
     teacher_net.to(device)
     consistency_criterion = get_criterion(cfg.CONSISTENCY_TRAINER.CONSISTENCY_LOSS_TYPE)
 
-    dataset = UrbanExtractionDataset(cfg=cfg, dataset='training', include_unlabeled=False)
+    dataset = UrbanExtractionDataset(cfg=cfg, dataset='training', include_unlabeled=True)
     print(dataset)
     dataloader_kwargs = {
         'batch_size': cfg.TRAINER.BATCH_SIZE,
@@ -74,10 +74,11 @@ def train_mean_teacher(net, cfg):
         loss_set, supervised_loss_set, consistency_loss_set = [], [], []
         n_labeled, n_notlabeled = 0, 0
 
-        student_net.train()
-        teacher_net.eval()
-
         for i, batch in enumerate(dataloader):
+
+            student_net.train()
+            teacher_net.train()
+
             optimizer.zero_grad()
 
             x = batch['x'].to(device)
@@ -100,6 +101,7 @@ def train_mean_teacher(net, cfg):
                 probs_teacher = torch.sigmoid(logits_teacher)
                 consistency_loss = consistency_criterion(logits_student[not_labeled, ], probs_teacher[not_labeled, ])
                 consistency_loss_set.append(consistency_loss.item())
+                n_notlabeled += torch.sum(not_labeled).item()
 
             if supervised_loss is None and consistency_loss is not None:
                 loss = cfg.CONSISTENCY_TRAINER.LOSS_FACTOR * consistency_loss
@@ -111,25 +113,23 @@ def train_mean_teacher(net, cfg):
             loss_set.append(loss.item())
             loss.backward()
             optimizer.step()
+            teacher_net.update()
             global_step += 1
             epoch_float = global_step / steps_per_epoch
-
-            # update teacher after each step
-            update_teacher_net(student_net, teacher_net, alpha=1, global_step=global_step)
 
             if global_step % cfg.LOG_FREQ == 0 and not cfg.DEBUG:
                 print(f'Logging step {global_step} (epoch {epoch_float:.2f}).')
 
                 # evaluation on sample of training and validation set
                 thresholds = torch.linspace(0, 1, 101)
-                train_argmaxF1 = model_evaluation(student_net, cfg, device, thresholds, 'training', epoch_float,
+                train_argmaxF1 = model_evaluation(teacher_net, cfg, device, thresholds, 'training', epoch_float,
                                                   global_step, max_samples=1_000)
-                _ = model_evaluation(student_net, cfg, device, thresholds, 'validation', epoch_float, global_step,
+                _ = model_evaluation(teacher_net, cfg, device, thresholds, 'validation', epoch_float, global_step,
                                      specific_index=train_argmaxF1, max_samples=1_000)
 
                 # logging
                 time = timeit.default_timer() - start
-                labeled_percentage = n_labeled / (n_labeled + n_notlabeled)
+                labeled_percentage = n_labeled / (n_labeled + n_notlabeled) * 100
                 wandb.log({
                     'loss': np.mean(loss_set),
                     'supervised_loss': 0 if len(supervised_loss_set) == 0 else np.mean(supervised_loss_set),
@@ -142,6 +142,7 @@ def train_mean_teacher(net, cfg):
 
                 # resetting stuff
                 start = timeit.default_timer()
+                loss_set, supervised_loss_set, consistency_loss_set = [], [], []
                 n_labeled, n_notlabeled = 0, 0
 
             if cfg.DEBUG:
@@ -155,54 +156,10 @@ def train_mean_teacher(net, cfg):
             torch.save(teacher_net.state_dict(), net_file)
 
 
-def image_sampling_weight(samples_metadata):
-    print('performing oversampling...', end='', flush=True)
-    empty_image_baseline = 1000
-    sampling_weights = np.array([float(sample['img_weight']) for sample in samples_metadata]) + empty_image_baseline
-    print('done', flush=True)
-    return sampling_weights
-
-
-def gpu_stats():
-    max_memory_allocated = torch.cuda.max_memory_allocated() / 1e6  # bytes to MB
-    max_memory_cached = torch.cuda.max_memory_cached() / 1e6
-    return int(max_memory_allocated), int(max_memory_cached)
-
-
-def setup(args):
-    cfg = new_config()
-    cfg.merge_from_file(f'configs/{args.config_file}.yaml')
-    cfg.merge_from_list(args.opts)
-    cfg.NAME = args.config_file
-
-    # TODO: might not be necessary -> remove
-    if args.data_dir:
-        cfg.DATASETS.TRAIN = (args.data_dir,)
-    return cfg
-
-
-def update_teacher_net(net, ema_net, alpha, global_step):
-    # Use the true average until the exponential average is more correct
-    alpha = min(1 - 1 / (global_step + 1), alpha)
-    # TODO: fix warning due to add_
-    for ema_param, param in zip(ema_net.parameters(), net.parameters()):
-        ema_param.data.mul_(alpha).add_(1 - alpha, param.data)
-    return ema_net
-
-
-def create_teacher_net(net, cfg):
-    net_copy = type(net)(cfg)  # get a new instance
-    net_copy.load_state_dict(net.state_dict())  # copy weights and stuff
-    # TODO: not sure about this one
-    for param in net_copy.parameters():
-        param.detach_()
-    return net_copy
-
-
 if __name__ == '__main__':
 
     args = default_argument_parser().parse_known_args()[0]
-    cfg = setup(args)
+    cfg = config.setup(args)
 
     # make training deterministic
     torch.manual_seed(cfg.SEED)

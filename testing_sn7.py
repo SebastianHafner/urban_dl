@@ -16,7 +16,7 @@ from utils.geotiff import *
 # TODO: add coordinates to title for area of interests
 
 URBAN_EXTRACTION_PATH = Path('/storage/shafner/urban_extraction')
-DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction_dataset')
+DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_dataset')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
 

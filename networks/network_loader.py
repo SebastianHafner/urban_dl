@@ -4,6 +4,7 @@ import segmentation_models_pytorch as smp
 from networks.unet import UNet, DualStreamUNet
 from networks.densefusionnet import DenseFusionNet
 from networks.customnets import SimpleNet1
+from networks.emanet import EMA
 from networks.resnet import ResNet
 
 from pathlib import Path
@@ -48,3 +49,8 @@ def load_network(cfg, pkl_file: Path):
     net.load_state_dict(state_dict)
 
     return net
+
+
+def create_ema_network(net, cfg):
+    ema_net = EMA(net, decay=cfg.CONSISTENCY_TRAINER.WEIGHT_DECAY)
+    return ema_net

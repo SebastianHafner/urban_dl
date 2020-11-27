@@ -138,3 +138,14 @@ def load_cfg(yaml_file: Path):
     cfg.merge_from_file(str(yaml_file))
     return cfg
 
+
+def setup(args):
+    cfg = new_config()
+    cfg.merge_from_file(f'configs/{args.config_file}.yaml')
+    cfg.merge_from_list(args.opts)
+    cfg.NAME = args.config_file
+
+    # TODO: might not be necessary -> remove
+    if args.data_dir:
+        cfg.DATASETS.TRAIN = (args.data_dir,)
+    return cfg

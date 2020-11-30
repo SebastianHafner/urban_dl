@@ -4,41 +4,6 @@ import torch
 import torch.nn as nn
 
 
-class DualStreamUNet(nn.Module):
-
-    def __init__(self, cfg):
-        super(DualStreamUNet, self).__init__()
-        self._cfg = cfg
-        out = cfg.MODEL.OUT_CHANNELS
-        topology = cfg.MODEL.TOPOLOGY
-
-        # sentinel-1 unet stream
-        s1_in = len(cfg.DATALOADER.SENTINEL1_BANDS)
-        self.s1_stream = UNet(cfg, n_channels=s1_in, n_classes=out, topology=topology, enable_outc=False)
-        self.s1_in = s1_in
-
-        # sentinel-2 unet stream
-        s2_in = len(cfg.DATALOADER.SENTINEL2_BANDS)
-        self.s2_stream = UNet(cfg, n_channels=s2_in, n_classes=out, topology=topology, enable_outc=False)
-        self.s2_in = s2_in
-
-        # out block combining unet outputs
-        out_dim = 2 * topology[0]
-        self.out_conv = OutConv(out_dim, out)
-
-    def forward(self, img):
-
-        s1_img, s2_img = torch.split(img, [self.s1_in, self.s2_in], dim=1)
-        s1_feature = self.s1_stream(s1_img)
-        s2_feature = self.s2_stream(s2_img)
-
-        fusion = torch.cat((s1_feature, s2_feature), dim=1)
-
-        out = self.out_conv(fusion)
-
-        return out
-
-
 class UNet(nn.Module):
     def __init__(self, cfg, n_channels=None, n_classes=None, topology=None, enable_outc=True):
 
@@ -111,6 +76,55 @@ class UNet(nn.Module):
         out = self.outc(x1) if self.enable_outc else x1
 
         return out
+
+
+class DualStreamUNet(nn.Module):
+
+    def __init__(self, cfg):
+        super(DualStreamUNet, self).__init__()
+        self._cfg = cfg
+        out = cfg.MODEL.OUT_CHANNELS
+        topology = cfg.MODEL.TOPOLOGY
+        out_dim = topology[0]
+
+
+        # sentinel-1 sar unet stream
+        sar_in = len(cfg.DATALOADER.SENTINEL1_BANDS)
+        self.sar_stream = UNet(cfg, n_channels=sar_in, n_classes=out, topology=topology, enable_outc=False)
+        self.sar_in = sar_in
+        self.sar_out_conv = OutConv(out_dim, out)
+
+        # sentinel-2 optical unet stream
+        optical_in = len(cfg.DATALOADER.SENTINEL2_BANDS)
+        self.optical_stream = UNet(cfg, n_channels=optical_in, n_classes=out, topology=topology, enable_outc=False)
+        self.optical_in = optical_in
+        self.optical_out_conv = OutConv(out_dim, out)
+
+        # out block combining unet outputs
+        fusion_out_dim = 2 * out_dim
+        self.fusion_out_conv = OutConv(fusion_out_dim, out)
+
+    def forward(self, x_fusion):
+
+        # sar
+        x_sar = x_fusion[:, :self.sar_in, ]
+        features_sar = self.sar_stream(x_sar)
+
+        # optical
+        x_optical = x_fusion[:, self.sar_in:, ]
+        features_optical = self.optical_stream(x_optical)
+
+        features_fusion = torch.cat((features_sar, features_optical), dim=1)
+        logits_fusion = self.fusion_out_conv(features_fusion)
+
+        if self.training:
+            logits_sar = self.sar_out_conv(features_sar)
+            logits_optical = self.optical_out_conv(features_optical)
+
+            return logits_sar, logits_optical, logits_fusion
+
+        else:
+            return logits_fusion
 
 
 # sub-parts of the U-Net model

@@ -21,11 +21,8 @@ from utils.evaluation import model_evaluation
 from experiment_manager.args import default_argument_parser
 from experiment_manager.config import config
 
-from tqdm import tqdm
-
 
 def train_net(net, cfg):
-
     run_config = {
         'CONFIG_NAME': cfg.NAME,
         'device': device,
@@ -39,7 +36,10 @@ def train_net(net, cfg):
     print(tabulate(table, headers='keys', tablefmt="fancy_grid", ))
 
     optimizer = optim.AdamW(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.01)
-    criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
+
+    sar_criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
+    optical_criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
+    fusion_criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
 
     if torch.cuda.device_count() > 1:
         print(torch.cuda.device_count(), " GPUs!")
@@ -54,7 +54,7 @@ def train_net(net, cfg):
     dataloader_kwargs = {
         'batch_size': cfg.TRAINER.BATCH_SIZE,
         'num_workers': 0 if cfg.DEBUG else cfg.DATALOADER.NUM_WORKER,
-        'shuffle':cfg.DATALOADER.SHUFFLE,
+        'shuffle': cfg.DATALOADER.SHUFFLE,
         'drop_last': True,
         'pin_memory': True,
     }
@@ -72,23 +72,30 @@ def train_net(net, cfg):
         print(f'Starting epoch {epoch + 1}/{epochs}.')
 
         start = timeit.default_timer()
-        loss_set = []
+        sar_loss_set, optical_loss_set, fusion_loss_set = [], [], []
 
         for i, batch in enumerate(dataloader):
 
             net.train()
             optimizer.zero_grad()
 
-            x = batch['x'].to(device)
+            x_fusion = batch['x'].to(device)
             y_gts = batch['y'].to(device)
 
-            y_pred = net(x)
+            sar_logits, optical_logits, fusion_logits = net(x_fusion)
 
-            loss = criterion(y_pred, y_gts)
+            sar_loss = sar_criterion(sar_logits, y_gts)
+            sar_loss_set.append(sar_loss.item())
+
+            optical_loss = optical_criterion(optical_logits, y_gts)
+            optical_loss_set.append(optical_loss.item())
+
+            fusion_loss = fusion_criterion(fusion_logits, y_gts)
+            fusion_loss_set.append(fusion_loss.item())
+
+            loss = sar_loss + optical_loss + fusion_loss
             loss.backward()
             optimizer.step()
-
-            loss_set.append(loss.item())
 
             global_step += 1
             epoch_float = global_step / steps_per_epoch
@@ -106,14 +113,16 @@ def train_net(net, cfg):
                 # logging
                 time = timeit.default_timer() - start
                 wandb.log({
-                    'loss': np.mean(loss_set),
+                    'sar_loss': np.mean(sar_loss_set),
+                    'optical_loss': np.mean(optical_loss_set),
+                    'fusion_loss': np.mean(fusion_loss_set),
                     'labeled_percentage': 100,
                     'time': time,
                     'step': global_step,
                     'epoch': epoch_float,
                 })
                 start = timeit.default_timer()
-                loss_set = []
+                sar_loss_set, optical_loss_set, fusion_loss_set = [], [], []
 
             if cfg.DEBUG:
                 break

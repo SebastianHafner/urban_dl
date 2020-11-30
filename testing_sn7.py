@@ -471,7 +471,7 @@ if __name__ == '__main__':
     # out_of_distribution_correlation('optical', 100, save_plot=False)
     # quantitative_testing('optical_gamma_smallnet', 100, save_output=True)
 
-    qualitative_testing('sar', False)
+    qualitative_testing('fusion_sensordropout', False)
     # quantitative_testing('sar_confidence', True)
     # quantitative_testing('sar_baseline_na', 100, save_output=True)
 

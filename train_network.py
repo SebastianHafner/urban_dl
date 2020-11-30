@@ -63,7 +63,7 @@ def train_net(net, cfg):
     # unpacking cfg
     epochs = cfg.TRAINER.EPOCHS
     save_checkpoints = cfg.SAVE_CHECKPOINTS
-    steps_per_epoch = len(dataset) // cfg.TRAINER.BATCH_SIZE
+    steps_per_epoch = len(dataloader)
 
     # tracking variables
     global_step = 0
@@ -76,7 +76,7 @@ def train_net(net, cfg):
 
         net.train()
 
-        for i, batch in enumerate(tqdm(dataloader)):
+        for i, batch in enumerate(dataloader):
             optimizer.zero_grad()
 
             x = batch['x'].to(device)

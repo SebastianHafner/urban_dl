@@ -16,9 +16,9 @@ class EMA(nn.Module):
         self.decay = decay
 
         self.model = model
-        self.shadow = deepcopy(self.model)
+        self.ema_model = deepcopy(self.model)
 
-        for param in self.shadow.parameters():
+        for param in self.ema_model.parameters():
             param.detach_()
 
     @torch.no_grad()
@@ -28,25 +28,31 @@ class EMA(nn.Module):
             return
 
         model_params = OrderedDict(self.model.named_parameters())
-        shadow_params = OrderedDict(self.shadow.named_parameters())
+        ema_model_params = OrderedDict(self.ema_model.named_parameters())
 
         # check if both model contains the same set of keys
-        assert model_params.keys() == shadow_params.keys()
+        assert model_params.keys() == ema_model_params.keys()
 
         for name, param in model_params.items():
             # see https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage
             # shadow_variable -= (1 - decay) * (shadow_variable - variable)
-            shadow_params[name].sub_((1. - self.decay) * (shadow_params[name] - param))
+            ema_model_params[name].sub_((1. - self.decay) * (ema_model_params[name] - param))
 
         model_buffers = OrderedDict(self.model.named_buffers())
-        shadow_buffers = OrderedDict(self.shadow.named_buffers())
+        ema_model_buffers = OrderedDict(self.ema_model.named_buffers())
 
         # check if both model contains the same set of keys
-        assert model_buffers.keys() == shadow_buffers.keys()
+        assert model_buffers.keys() == ema_model_buffers.keys()
 
         for name, buffer in model_buffers.items():
             # buffers are copied
-            shadow_buffers[name].copy_(buffer)
+            ema_model_buffers[name].copy_(buffer)
 
     def forward(self, inputs: Tensor) -> Tensor:
-        return self.shadow(inputs)
+        return self.ema_model(inputs)
+
+    def get_ema_model(self):
+        return self.ema_model
+
+    def get_model(self):
+        return self.model

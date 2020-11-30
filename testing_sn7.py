@@ -7,7 +7,7 @@ from tqdm import tqdm
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from networks.network_loader import load_network
-from utils.dataloader import SpaceNet7Dataset
+from utils.datasets import SpaceNet7Dataset
 from experiment_manager.config import config
 from utils.metrics import *
 from utils.geotiff import *
@@ -24,20 +24,15 @@ GROUPS = [(1, 'NA_AU', '#63cd93'), (2, 'SA', '#f0828f'), (3, 'EU', '#6faec9'), (
           (5, 'NAF_ME', '#8dee47'), (6, 'AS', '#d9b657'), ('total', 'Total', '#ffffff')]
 
 
-def qualitative_testing(config_name: str, checkpoint: int, save_plots: bool = False):
-    cfg_file = CONFIG_PATH / f'{config_name}.yaml'
-    cfg = config.load_cfg(cfg_file)
+def qualitative_testing(config_name: str, save_plots: bool = False):
 
-    # loading dataset
+    # loading dataset and networks
+    cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
     dataset = SpaceNet7Dataset(cfg)
-
-    # loading network
-    net_file = NETWORK_PATH / f'{config_name}_{checkpoint}.pkl'
-    net = load_network(cfg, net_file)
+    net = load_network(cfg, NETWORK_PATH / f'{config_name}_{cfg.INFERENCE.CHECKPOINT}.pkl')
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net.to(device)
     net.eval()
-    thresh = cfg.THRESHOLDS.VALIDATION
 
     for index in tqdm(range(len(dataset))):
         sample = dataset.__getitem__(index)
@@ -64,7 +59,7 @@ def qualitative_testing(config_name: str, checkpoint: int, save_plots: bool = Fa
             logits = net(x.unsqueeze(0))
             prob = torch.sigmoid(logits[0, 0,])
             prob = prob.detach().cpu().numpy()
-            pred = prob > thresh
+            pred = prob > cfg.INFERENCE.THRESHOLDS.VALIDATION
 
             plot_probability(axs[1, 2], prob, show_title=True)
             plot_prediction(axs[1, 1], pred, show_title=True)
@@ -81,20 +76,16 @@ def qualitative_testing(config_name: str, checkpoint: int, save_plots: bool = Fa
         plt.close()
 
 
-def quantitative_testing(config_name: str, checkpoint: int, save_output: bool = False):
-    cfg_file = CONFIG_PATH / f'{config_name}.yaml'
-    cfg = config.load_cfg(cfg_file)
+def quantitative_testing(config_name: str, save_output: bool = False):
 
-    # loading dataset
+    # loading config and dataset
+    cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
     dataset = SpaceNet7Dataset(cfg)
-
-    # loading network
-    net_file = NETWORK_PATH / f'{config_name}_{checkpoint}.pkl'
-    net = load_network(cfg, net_file)
+    net = load_network(cfg, NETWORK_PATH / f'{config_name}_{cfg.INFERENCE.CHECKPOINT}.pkl')
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net.to(device)
     net.eval()
-    thresh = cfg.THRESHOLDS.VALIDATION
+    thresh = cfg.INFERENCE.THRESHOLDS.VALIDATION
 
     y_true_dict = {'total': np.array([])}
     y_pred_dict = {'total': np.array([])}
@@ -479,7 +470,9 @@ if __name__ == '__main__':
     # out_of_distribution_check(60, save_plots=False)
     # out_of_distribution_correlation('optical', 100, save_plot=False)
     # quantitative_testing('optical_gamma_smallnet', 100, save_output=True)
-    quantitative_testing('fusion_gamma_smallnet_sensordropout', 100, save_output=True)
+
+    qualitative_testing('sar', False)
+    # quantitative_testing('sar_confidence', True)
     # quantitative_testing('sar_baseline_na', 100, save_output=True)
 
     # not including africa experiment

@@ -62,7 +62,7 @@ def train_mean_teacher(net, cfg):
     # unpacking cfg
     epochs = cfg.TRAINER.EPOCHS
     save_checkpoints = cfg.SAVE_CHECKPOINTS
-    steps_per_epoch = len(dataset) // cfg.TRAINER.BATCH_SIZE
+    steps_per_epoch = len(dataloader)
 
     # tracking variables
     global_step = 0
@@ -153,7 +153,7 @@ def train_mean_teacher(net, cfg):
         if epoch in save_checkpoints and not cfg.DEBUG:
             print(f'saving network', flush=True)
             net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}_{epoch}.pkl'
-            torch.save(teacher_net.state_dict(), net_file)
+            torch.save(teacher_net.get_ema_model().state_dict(), net_file)
 
 
 if __name__ == '__main__':

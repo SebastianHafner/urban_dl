@@ -1,10 +1,10 @@
 _BASE_: "base.yaml"
 DEBUG: False
 INFERENCE:
-  CHECKPOINT: 100
+  CHECKPOINT: 20
   THRESHOLDS:
-    TRAIN: 0.0
-    VALIDATION: 0.0
+    TRAIN: 0.46
+    VALIDATION: 0.44
 
 MODEL:
   TYPE: 'unet'

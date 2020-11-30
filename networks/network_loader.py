@@ -5,6 +5,7 @@ from networks.unet import UNet, DualStreamUNet
 from networks.densefusionnet import DenseFusionNet
 from networks.customnets import SimpleNet1
 from networks.emanet import EMA
+from networks.confidencenet import ConfidenceNet
 from networks.resnet import ResNet
 
 from pathlib import Path
@@ -35,6 +36,9 @@ def create_network(cfg):
 
     elif architecture == 'simplenet1':
         net = SimpleNet1(cfg)
+
+    elif architecture == 'confidencenet':
+        net = ConfidenceNet(cfg)
 
     else:
         net = UNet(cfg)

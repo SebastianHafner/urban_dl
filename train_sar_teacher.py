@@ -1,14 +1,9 @@
 import sys
-from os import path
 from pathlib import Path
 import os
-from argparse import ArgumentParser
-import datetime
-import enum
 import timeit
 
 import torch
-import torch.nn as nn
 from torch import optim
 from torch.utils import data as torch_data
 
@@ -19,7 +14,7 @@ from networks.network_loader import create_network, load_network
 
 from utils.datasets import STUrbanExtractionDataset
 from utils.augmentations import *
-from utils.evaluation import model_evaluation, model_testing
+from utils.evaluation import model_evaluation
 from utils.loss import get_criterion
 
 from experiment_manager.args import default_argument_parser
@@ -43,7 +38,7 @@ def train_sar_teacher(cfg, sar_cfg):
 
     net = create_network(cfg)
     optimizer = optim.AdamW(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.01)
-    criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
+    supervised_criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
     net.to(device)
 
     sar_net_file = Path(sar_cfg.OUTPUT_BASE_DIR) / f'{sar_cfg.NAME}_{sar_cfg.INFERENCE.CHECKPOINT}.pkl'
@@ -66,6 +61,7 @@ def train_sar_teacher(cfg, sar_cfg):
     # unpacking cfg
     epochs = cfg.TRAINER.EPOCHS
     save_checkpoints = cfg.SAVE_CHECKPOINTS
+    steps_per_epoch = len(dataloader)
 
     # tracking variables
     global_step = 0
@@ -74,13 +70,12 @@ def train_sar_teacher(cfg, sar_cfg):
         print(f'Starting epoch {epoch + 1}/{epochs}.')
 
         start = timeit.default_timer()
-        loss_set = []
-        sar_loss_set = []
-        consistency_loss_set = []
+        loss_set, supervised_loss_set, consistency_loss_set = [], [], []
+        n_labeled, n_notlabeled = 0, 0
 
         net.train()
 
-        for i, batch in enumerate(tqdm(dataloader)):
+        for i, batch in enumerate(dataloader):
             optimizer.zero_grad()
 
             x = batch['x'].to(device)
@@ -90,11 +85,12 @@ def train_sar_teacher(cfg, sar_cfg):
 
             logits = net(x)
 
-            loss, consistency_loss = None, None
+            supervised_loss, consistency_loss = None, None
 
             if is_labeled.any():
-                loss = criterion(logits[is_labeled, ], y_gts[is_labeled])
-                loss_set.append(loss.item())
+                supervised_loss = supervised_criterion(logits[is_labeled, ], y_gts[is_labeled])
+                supervised_loss_set.append(supervised_loss.item())
+                n_labeled += torch.sum(is_labeled).item()
 
             if not is_labeled.all():
                 not_labeled = torch.logical_not(is_labeled)
@@ -104,69 +100,61 @@ def train_sar_teacher(cfg, sar_cfg):
                         output_sar = (probs_sar > sar_cfg.INFERENCE.THRESHOLDS.VALIDATION).float()
                     else:
                         output_sar = probs_sar
-                # mean square error
+
                 consistency_loss = consistency_criterion(logits[not_labeled, ], output_sar)
                 consistency_loss_set.append(consistency_loss.item())
+                n_notlabeled += torch.sum(not_labeled).item()
 
-            if loss is None and consistency_loss is not None:
+            if supervised_loss is None and consistency_loss is not None:
                 loss = cfg.CONSISTENCY_TRAINER.LOSS_FACTOR * consistency_loss
-            elif loss is not None and consistency_loss is not None:
-                loss = loss + cfg.CONSISTENCY_TRAINER.LOSS_FACTOR * consistency_loss
+            elif supervised_loss is not None and consistency_loss is not None:
+                loss = supervised_loss + cfg.CONSISTENCY_TRAINER.LOSS_FACTOR * consistency_loss
             else:
-                loss = loss
+                loss = supervised_loss
 
+            loss_set.append(loss.item())
             loss.backward()
             optimizer.step()
 
             global_step += 1
+            epoch_float = global_step / steps_per_epoch
+
+            if global_step % cfg.LOG_FREQ == 0 and not cfg.DEBUG:
+                print(f'Logging step {global_step} (epoch {epoch_float:.2f}).')
+
+                # evaluation on sample of training and validation set
+                thresholds = torch.linspace(0, 1, 101)
+                train_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'training', epoch_float,
+                                                  global_step, max_samples=1_000)
+                _ = model_evaluation(net, cfg, device, thresholds, 'validation', epoch_float, global_step,
+                                     specific_index=train_argmaxF1, max_samples=1_000)
+
+                # logging
+                time = timeit.default_timer() - start
+                labeled_percentage = n_labeled / (n_labeled + n_notlabeled) * 100
+                wandb.log({
+                    'loss': np.mean(loss_set),
+                    'supervised_loss': 0 if len(supervised_loss_set) == 0 else np.mean(supervised_loss_set),
+                    'consistency_loss': 0 if len(consistency_loss_set) == 0 else np.mean(consistency_loss_set),
+                    'labeled_percentage': labeled_percentage,
+                    'time': time,
+                    'step': global_step,
+                    'epoch': epoch_float,
+                })
+
+                # resetting stuff
+                start = timeit.default_timer()
+                loss_set, supervised_loss_set, consistency_loss_set = [], [], []
+                n_labeled, n_notlabeled = 0, 0
 
             if cfg.DEBUG:
                 break
             # end of batch
 
-        stop = timeit.default_timer()
-        time_per_epoch = stop - start
-        max_mem, max_cache = gpu_stats()
-
-        if not cfg.DEBUG:
-            wandb.log({
-                'loss': np.mean(loss_set),
-                'loss_sar': np.mean(sar_loss_set),
-                'consistency_loss': np.mean(consistency_loss_set),
-                'gpu_memory': max_mem,
-                'time': time_per_epoch,
-                'step': global_step,
-                'epoch': epoch,
-            })
-
-        # evaluation on sample of training and validation set after ever epoch
-        thresholds = torch.linspace(0, 1, 101)
-        train_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'training', epoch, global_step,
-                                          max_samples=10_000)
-        val_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'validation', epoch, global_step,
-                                        specific_index=train_argmaxF1, max_samples=10_000)
-        model_testing(net, cfg, device, val_argmaxF1, epoch, global_step)
-
         if epoch in save_checkpoints:
             print(f'saving network', flush=True)
             net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}_{epoch}.pkl'
             torch.save(net.state_dict(), net_file)
-
-
-def image_sampling_weight(samples_metadata):
-    print('performing oversampling...', end='', flush=True)
-    empty_image_baseline = 1000
-    sampling_weights = np.array([float(sample['img_weight']) for sample in samples_metadata]) + empty_image_baseline
-    print('done', flush=True)
-    return sampling_weights
-
-
-
-
-def gpu_stats():
-    max_memory_allocated = torch.cuda.max_memory_allocated() / 1e6  # bytes to MB
-    max_memory_cached = torch.cuda.max_memory_cached() / 1e6
-    return int(max_memory_allocated), int(max_memory_cached)
 
 
 def setup(args):

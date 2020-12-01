@@ -11,7 +11,8 @@ from utils.visualization import *
 
 
 SN7_PATH = Path('/storage/shafner/spacenet7/train')
-METADATA_FILE = SN7_PATH.parent / 'sn7_metadata_v3.csv'
+# SN7_PATH = Path('C:/Users/hafne/urban_extraction/data/spacenet7/train')
+METADATA_FILE = SN7_PATH.parent / 'sn7_metadata_urban_dataset.csv'
 
 
 def get_all_aoi_ids() -> list:
@@ -374,9 +375,9 @@ if __name__ == '__main__':
         # create_label_masks(aoi_id)
         # create_building_change_masks(aoi_id)
     # show_stable_building_pixels(test_aoi)
-    metadata_file = SN7_PATH.parent / 'sn7_metadata_v3.csv'
     # construct_reference_buildings_file(metadata_file)
 
-    # construct_buildings_file(metadata_file)
+    # construct_buildings_file(METADATA_FILE)
+
     samples_save_path = Path('/storage/shafner/urban_extraction/urban_dataset/sn7')
-    construct_samples_file(metadata_file, samples_save_path)
+    construct_samples_file(METADATA_FILE, samples_save_path)

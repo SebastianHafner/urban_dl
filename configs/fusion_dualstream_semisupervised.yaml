@@ -1,14 +1,17 @@
 _BASE_: "base.yaml"
 DEBUG: False
 INFERENCE:
-  CHECKPOINT: 20
+  CHECKPOINT: 0
   THRESHOLDS:
-    TRAIN: 0.45
-    VALIDATION: 0.43
+    TRAIN: 0.00
+    VALIDATION: 0.00
 
 MODEL:
   TYPE: 'dualstreamunet'
   IN_CHANNELS: 12
+
+TRAINER:
+  BATCH_SIZE: 8
 
 DATALOADER:
   MODE: 'fusion'

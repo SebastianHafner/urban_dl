@@ -40,14 +40,14 @@ DATASETS:
              'quebec', 'saltlakecity', 'sandiego', 'santafe', 'seattle', 'stgeorge', 'toronto',
              'tucson', 'winnipeg']
   VALIDATION: ['calgary', 'newyork', 'sanfrancisco', 'vancouver']
-  UNLABELED: ['beijing', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
-              'riodejanairo', 'shanghai', 'sidney', 'stockholm']
+  UNLABELED: ['beijing', 'dakar', 'dubai', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'mumbai',
+              'riodejanairo', 'shanghai']
   TESTING: '/storage/shafner/urban_extraction/urban_dataset/sn7/'
 
 TRAINER:
   LR: 1e-4
   BATCH_SIZE: 16
-  EPOCHS: 21
+  EPOCHS: 20
   OPTIMIZER: 'adamw'
 
 AUGMENTATION:

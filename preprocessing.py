@@ -115,9 +115,10 @@ if __name__ == '__main__':
                      'houston', 'kansascity', 'lasvegas', 'losangeles', 'miami', 'minneapolis', 'montreal', 'newyork',
                      'phoenix', 'quebec', 'saltlakecity', 'sandiego', 'sanfrancisco', 'santafe', 'seattle', 'stgeorge',
                      'toronto', 'tucson', 'vancouver', 'winnipeg']
-    unlabeled_sites = ['beijing', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
-                       'riodejanairo', 'shanghai', 'sidney', 'stockholm']
+    unlabeled_sites = ['beijing', 'dakar', 'dubai', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano',
+                       'mumbai', 'riodejanairo', 'shanghai', 'sidney', 'stockholm']
     all_sites = labeled_sites + unlabeled_sites
+    all_sites = unlabeled_sites
     for i, site in enumerate(all_sites):
         if i >= 0:
             labeled = True if site in labeled_sites else False

@@ -1,0 +1,17 @@
+_BASE_: "base.yaml"
+DEBUG: False
+LOG_FREQ: 50
+OUTPUT_BASE_DIR: '/storage/shafner/urban_extraction/networks'
+SAVE_CHECKPOINTS: [2]
+
+TRAINER:
+  EPOCHS: 2
+  BATCH_SIZE: 2
+
+DATASETS:
+  PATH: '/storage/shafner/urban_extraction/urban_dataset/'
+  TRAINING: ['elpaso','santafe', 'stgeorge']
+  VALIDATION: ['calgary']
+  UNLABELED: ['beijing', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
+              'riodejanairo', 'shanghai', 'sidney', 'stockholm']
+  TESTING: '/storage/shafner/urban_extraction/urban_dataset/sn7/'

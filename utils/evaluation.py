@@ -8,8 +8,8 @@ from utils import datasets, metrics
 
 # specific threshold creates an additional log for that threshold
 # can be used to apply best training threshold to validation set
-def model_evaluation(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: int, step: int,
-               max_samples: int = 1000, specific_index: int = None):
+def model_evaluation(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: float, step: int,
+                     max_samples: int = 1_000, specific_index: int = None):
     y_true_set = []
     y_pred_set = []
 
@@ -68,6 +68,8 @@ def model_evaluation(net, cfg, device, thresholds: torch.Tensor, run_type: str, 
 
 def model_testing(net, cfg, device, argmax, step, epoch):
 
+    net.eval()
+
     threshold = argmax / 100
 
     # loading dataset
@@ -75,12 +77,6 @@ def model_testing(net, cfg, device, argmax, step, epoch):
 
     y_true_dict = {'total': np.array([])}
     y_pred_dict = {'total': np.array([])}
-
-    # def testing_callback(y_true, y_pred):
-    #     y_true = y_true.detach()
-    #     y_pred = y_pred.detach()
-    #     y_true_set.append(y_true.cpu())
-    #     y_pred_set.append(y_pred.cpu())
 
     for index in tqdm(range(len(dataset))):
         sample = dataset.__getitem__(index)
@@ -105,12 +101,14 @@ def model_testing(net, cfg, device, argmax, step, epoch):
             y_true_dict['total'] = np.concatenate((y_true_dict['total'], y_true))
             y_pred_dict['total'] = np.concatenate((y_pred_dict['total'], y_pred))
 
-    for group_index, group_name in dataset.group_names.items():
+    def evaluate_group(group_name):
         group_y_true = torch.Tensor(np.array(y_true_dict[group_name]))
         group_y_pred = torch.Tensor(np.array(y_pred_dict[group_name]))
         prec = metrics.precision(group_y_true, group_y_pred, dim=0).item()
         rec = metrics.recall(group_y_true, group_y_pred, dim=0).item()
         f1 = metrics.f1_score(group_y_true, group_y_pred, dim=0).item()
+
+        print(f'{group_name} F1 {f1:.3f} - Precision {prec:.3f} - Recall {rec:.3f}')
 
         if not cfg.DEBUG:
             wandb.log({f'{group_name} F1': f1,
@@ -118,6 +116,10 @@ def model_testing(net, cfg, device, argmax, step, epoch):
                        f'{group_name} recall': rec,
                        'step': step, 'epoch': epoch,
                        })
+
+    for group_index, group_name in dataset.group_names.items():
+        evaluate_group(group_name)
+    evaluate_group('total')
 
 
 def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=999999999,

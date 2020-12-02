@@ -469,9 +469,9 @@ if __name__ == '__main__':
     # plot_reference_comparison(40)
     # out_of_distribution_check(60, save_plots=False)
     # out_of_distribution_correlation('optical', 100, save_plot=False)
-    quantitative_testing('fusion_dualstream', save_output=False)
+    # quantitative_testing('fusion_dualstream_semisupervised', save_output=False)
 
-    # qualitative_testing('fusion_dualstream', True)
+    qualitative_testing('fusion_dualstream_semisupervised', False)
     # quantitative_testing('sar_confidence', True)
     # quantitative_testing('sar_baseline_na', 100, save_output=True)
 

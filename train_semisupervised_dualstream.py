@@ -155,7 +155,8 @@ def train_net(net, cfg):
                     'epoch': epoch_float,
                 })
                 start = timeit.default_timer()
-                sar_loss_set, optical_loss_set, fusion_loss_set, consistency_loss_set = [], [], [], []
+                sar_loss_set, optical_loss_set, fusion_loss_set = [], [], []
+                supervised_loss_set, consistency_loss_set = [], []
                 n_labeled, n_notlabeled = 0, 0
 
             if cfg.DEBUG:

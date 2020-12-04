@@ -7,7 +7,12 @@ INFERENCE:
     VALIDATION: 0.00
 
 MODEL:
-  IN_CHANNELS: 2
+  TYPE: 'dualstreamunet'
+  IN_CHANNELS: 12
 
 DATALOADER:
-  MODE: 'sar'
+  MODE: 'fusion'
+
+AUGMENTATION:
+  COLOR_SHIFT: False
+  GAMMA_CORRECTION: True

@@ -16,7 +16,7 @@ from networks.network_loader import create_network
 from utils.datasets import UrbanExtractionDataset
 from utils.augmentations import *
 from utils.loss import get_criterion
-from utils.evaluation import model_evaluation
+from utils.evaluation import model_evaluation, model_testing
 
 from experiment_manager.args import default_argument_parser
 from experiment_manager.config import config
@@ -59,6 +59,7 @@ def train_net(net, cfg):
         'pin_memory': True,
     }
     dataloader = torch_data.DataLoader(dataset, **dataloader_kwargs)
+    thresholds = torch.linspace(0, 1, 101)
 
     # unpacking cfg
     epochs = cfg.TRAINER.EPOCHS
@@ -66,10 +67,10 @@ def train_net(net, cfg):
     steps_per_epoch = len(dataloader)
 
     # tracking variables
-    global_step = 0
+    global_step = epoch_float = 0
 
-    for epoch in range(epochs):
-        print(f'Starting epoch {epoch + 1}/{epochs}.')
+    for epoch in range(1, epochs + 1):
+        print(f'Starting epoch {epoch}/{epochs}.')
 
         start = timeit.default_timer()
         sar_loss_set, optical_loss_set, fusion_loss_set = [], [], []
@@ -104,7 +105,6 @@ def train_net(net, cfg):
                 print(f'Logging step {global_step} (epoch {epoch_float:.2f}).')
 
                 # evaluation on sample of training and validation set
-                thresholds = torch.linspace(0, 1, 101)
                 train_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'training', epoch_float, global_step,
                                                   max_samples=1_000)
                 _ = model_evaluation(net, cfg, device, thresholds, 'validation', epoch_float, global_step,
@@ -132,6 +132,17 @@ def train_net(net, cfg):
             print(f'saving network', flush=True)
             net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}_{epoch}.pkl'
             torch.save(net.state_dict(), net_file)
+            # logs to load network
+            train_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'training', epoch_float, global_step)
+            validation_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'validation', epoch_float, global_step)
+
+            wandb.log({
+                'net_checkpoint': epoch,
+                'checkpoint_step': global_step,
+                'train_threshold': train_argmaxF1 / 100,
+                'validation_threshold': validation_argmaxF1 / 100
+            })
+            model_testing(net, cfg, device, validation_argmaxF1, global_step, epoch_float)
 
 
 if __name__ == '__main__':

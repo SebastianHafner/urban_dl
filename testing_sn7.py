@@ -344,7 +344,6 @@ def out_of_distribution_correlation(config_name: str, checkpoint: int, save_plot
     plt.close()
 
 
-
 def plot_quantitative_testing(config_names: list, names: list):
 
     path = DATASET_PATH.parent / 'testing'
@@ -371,6 +370,63 @@ def plot_quantitative_testing(config_names: list, names: list):
         ax.set_xticklabels(group_names)
         plt.grid(b=True, which='major', axis='y', zorder=0)
         plt.show()
+
+
+def plot_activation_comparison(config_names: list, save_plots: bool = False):
+
+    # setup
+    configs = [config.load_cfg(CONFIG_PATH / f'{config_name}.yaml') for config_name in config_names]
+    datasets = [SpaceNet7Dataset(cfg) for cfg in configs]
+    net_files = [NETWORK_PATH / f'{name}_{cfg.INFERENCE.CHECKPOINT}.pkl' for cfg, name in zip(configs, config_names)]
+
+    # optical, sar, reference and predictions (n configs)
+    n_plots = 3 + len(config_names)
+
+    for index in range(len(datasets[0])):
+        fig, axs = plt.subplots(1, n_plots, figsize=(n_plots * 5, 5))
+        for i, (cfg, dataset, net_file) in enumerate(zip(configs, datasets, net_files)):
+
+            net = load_network(cfg, net_file)
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            net.to(device)
+            net.eval()
+
+            sample = dataset.__getitem__(index)
+            aoi_id = sample['aoi_id']
+            country = sample['country']
+            group_name = sample['group_name']
+
+            if i == 0:
+                fig.subplots_adjust(wspace=0, hspace=0)
+                mpl.rcParams['axes.linewidth'] = 4
+
+                optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
+                plot_optical(axs[0], optical_file, vis='false_color', show_title=False)
+
+                sar_file = DATASET_PATH / 'sn7' / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
+                plot_sar(axs[1], sar_file, show_title=False)
+
+                label = cfg.DATALOADER.LABEL
+                label_file = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
+                plot_buildings(axs[2], label_file, show_title=False)
+
+            with torch.no_grad():
+                x = sample['x'].to(device)
+                logits = net(x.unsqueeze(0))
+                prob = torch.sigmoid(logits[0, 0,])
+                prob = prob.detach().cpu().numpy()
+                plot_probability(axs[3 + i], prob, show_title=False)
+
+        title = f'{aoi_id} ({country},  {group_name})'
+        plt.suptitle(title)
+        if save_plots:
+            folder = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'qualitative' / '_'.join(config_names)
+            folder.mkdir(exist_ok=True)
+            file = folder / f'{title}.png'
+            plt.savefig(file, dpi=300, bbox_inches='tight')
+        else:
+            plt.show()
+        plt.close()
 
 
 def qualitative_testing_comparison(config_names: list, checkpoints: list, save_plots: bool = False):
@@ -469,9 +525,11 @@ if __name__ == '__main__':
     # plot_reference_comparison(40)
     # out_of_distribution_check(60, save_plots=False)
     # out_of_distribution_correlation('optical', 100, save_plot=False)
-    quantitative_testing('fusiondual_semisupervised_consloss01iou', save_output=False)
+    # quantitative_testing('fusiondual_gamma', save_output=False)
 
-    qualitative_testing('fusiondual_semisupervised_consloss01iou', False)
+    # qualitative_testing('fusiondual_gamma', False)
+
+    plot_activation_comparison(['optical', 'fusiondual', 'fusiondual_semisupervised'])
     # quantitative_testing('sar_confidence', True)
     # quantitative_testing('sar_baseline_na', 100, save_output=True)
 

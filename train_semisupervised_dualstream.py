@@ -70,6 +70,7 @@ def train_net(net, cfg):
     global_step = epoch_float = 0
 
     # for logging
+    thresholds = torch.linspace(0, 1, 101)
     train_argmaxF1 = validation_argmaxF1 = 0
 
     for epoch in range(1, epochs + 1):
@@ -133,11 +134,10 @@ def train_net(net, cfg):
                 print(f'Logging step {global_step} (epoch {epoch_float:.2f}).')
 
                 # evaluation on sample of training and validation set
-                thresholds = torch.linspace(0, 1, 101)
                 train_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'training', epoch_float, global_step,
                                                   max_samples=1_000)
-                validation_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'validation', epoch_float,
-                                                       global_step, specific_index=train_argmaxF1, max_samples=1_000)
+                _ = model_evaluation(net, cfg, device, thresholds, 'validation', epoch_float, global_step,
+                                     specific_index=train_argmaxF1, max_samples=1_000)
 
                 # logging
                 time = timeit.default_timer() - start
@@ -169,6 +169,9 @@ def train_net(net, cfg):
             net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}_{epoch}.pkl'
             torch.save(net.state_dict(), net_file)
             # logs to load network
+            train_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'training', epoch_float, global_step)
+            validation_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'validation', epoch_float, global_step,
+                                                   specific_index=train_argmaxF1)
             wandb.log({
                 'net_checkpoint': epoch,
                 'checkpoint_step': global_step,

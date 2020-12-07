@@ -9,7 +9,7 @@ from utils import datasets, metrics
 # specific threshold creates an additional log for that threshold
 # can be used to apply best training threshold to validation set
 def model_evaluation(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: float, step: int,
-                     max_samples: int = 1_000, specific_index: int = None):
+                     max_samples: int = None, specific_index: int = None):
     y_true_set = []
     y_pred_set = []
 
@@ -122,7 +122,7 @@ def model_testing(net, cfg, device, argmax, step, epoch):
     evaluate_group('total')
 
 
-def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=999999999,
+def inference_loop(net, cfg, device, callback=None, batch_size: int = 1, max_samples: int = None,
                    dataset=None, callback_include_x=False):
     net.to(device)
     net.eval()
@@ -131,10 +131,10 @@ def inference_loop(net, cfg, device, callback=None, batch_size=1, max_samples=99
     num_workers = 0 if cfg.DEBUG else cfg.DATALOADER.NUM_WORKER
     dataloader = torch_data.DataLoader(dataset, batch_size=batch_size, num_workers=num_workers,
                                        shuffle=True, drop_last=True)
-    dataset_length = np.minimum(len(dataset), max_samples)
+    stop_step = len(dataloader) if max_samples is None else max_samples
     with torch.no_grad():
         for step, batch in enumerate(tqdm(dataloader)):
-            if step == dataset_length:
+            if step == stop_step:
                 break
 
             imgs = batch['x'].to(device)

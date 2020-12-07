@@ -582,29 +582,28 @@ class TilesInferenceDataset(torch.utils.data.Dataset):
         y_center, x_center = patch_id_center.split('-')
         y_center, x_center = int(y_center), int(x_center)
 
-        if y_center == 0 or x_center == 0:
-            extended_img = np.zeros((3 * self.patch_size, 3 * self.patch_size, self.n_features), dtype=np.float32)
-        elif y_center == self.max_y or x_center == self.max_x:
-            extended_img = np.zeros((3 * self.patch_size, 3 * self.patch_size, self.n_features), dtype=np.float32)
-        else:
-            extended_img = np.zeros((3 * self.patch_size, 3 * self.patch_size, self.n_features), dtype=np.float32)
-            for i in range(3):
-                for j in range(3):
-                    y = y_center + (i - 1) * self.patch_size
-                    x = x_center + (j - 1) * self.patch_size
-                    patch_id = f'{y:010d}-{x:010d}'
-                    img = self._load_img(patch_id)
-                    i_start = i * self.patch_size
-                    i_end = (i + 1) * self.patch_size
-                    j_start = j * self.patch_size
-                    j_end = (j + 1) * self.patch_size
-                    extended_img[i_start:i_end, j_start:j_end, :] = img
+        extended_patch = np.zeros((3 * self.patch_size, 3 * self.patch_size, self.n_features), dtype=np.float32)
 
-        dummy_label = np.zeros((extended_img.shape[0], extended_img.shape[1], 1), dtype=np.float32)
-        extended_img, _ = self.transform((extended_img, dummy_label))
+        for i in range(3):
+            for j in range(3):
+                y = y_center + (i - 1) * self.patch_size
+                x = x_center + (j - 1) * self.patch_size
+                patch_id = f'{y:010d}-{x:010d}'
+                if self._is_valid_patch_id(patch_id):
+                    patch = self._load_patch(patch_id)
+                else:
+                    patch = np.zeros((self.patch_size, self.patch_size, self.n_features), dtype=np.float32)
+                i_start = i * self.patch_size
+                i_end = (i + 1) * self.patch_size
+                j_start = j * self.patch_size
+                j_end = (j + 1) * self.patch_size
+                extended_patch[i_start:i_end, j_start:j_end, :] = patch
+
+        dummy_label = np.zeros((extended_patch.shape[0], extended_patch.shape[1], 1), dtype=np.float32)
+        extended_patch, _ = self.transform((extended_patch, dummy_label))
 
         item = {
-            'x': extended_img,
+            'x': extended_patch,
             'i': y_center,
             'j': x_center,
             'site': self.site,
@@ -613,7 +612,11 @@ class TilesInferenceDataset(torch.utils.data.Dataset):
 
         return item
 
-    def _load_img(self, patch_id):
+    def _is_valid_patch_id(self, patch_id):
+        patch_ids = [s['patch_id'] for s in self.samples]
+        return True if patch_id in patch_ids else False
+
+    def _load_patch(self, patch_id):
         mode = self.cfg.DATALOADER.MODE
         if mode == 'optical':
             img, _, _ = self._get_sentinel2_data(patch_id)

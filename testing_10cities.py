@@ -56,10 +56,10 @@ def run_inference(config_name: str, site: str):
 
 
 if __name__ == '__main__':
-    config_name = 'sar_confidence_jaccard'
-    cities = ['beijing', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai', 'riodejanairo',
-              'shanghai', 'sidney', 'stockholm']
-    cities = ['stockholm', 'kairo', 'kigali', 'lagos', 'dubai', 'dakar']
+    config_name = 'fusiondual_semisupervised'
+    cities = ['beijing', 'dakar', 'dubai', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
+              'riodejanairo', 'shanghai', 'sidney', 'stockholm']
+    # cities = ['stockholm', 'kairo', 'kigali', 'lagos', 'dubai', 'dakar']
     for city in cities:
         run_inference(config_name, city)
 

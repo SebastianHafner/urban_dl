@@ -76,7 +76,7 @@ def qualitative_testing(config_name: str, save_plots: bool = False):
         plt.close()
 
 
-def quantitative_testing(config_name: str, save_output: bool = False):
+def quantitative_testing(config_name: str, threshold: float = None, save_output: bool = False):
 
     # loading config and dataset
     cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
@@ -85,7 +85,7 @@ def quantitative_testing(config_name: str, save_output: bool = False):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net.to(device)
     net.eval()
-    thresh = cfg.INFERENCE.THRESHOLDS.VALIDATION
+    thresh = threshold if threshold else cfg.INFERENCE.THRESHOLDS.VALIDATION
 
     y_true_dict = {'total': np.array([])}
     y_pred_dict = {'total': np.array([])}
@@ -525,17 +525,17 @@ if __name__ == '__main__':
     # plot_reference_comparison(40)
     # out_of_distribution_check(60, save_plots=False)
     # out_of_distribution_correlation('optical', 100, save_plot=False)
-    # quantitative_testing('fusiondual_gamma', save_output=False)
 
+    # quantitative_testing('optical', threshold=0.5, save_output=True)
     # qualitative_testing('fusiondual_gamma', False)
 
-    plot_activation_comparison(['optical', 'fusiondual', 'fusiondual_semisupervised'])
+    # plot_activation_comparison(['optical', 'fusiondual', 'fusiondual_semisupervised'], save_plots=True)
     # quantitative_testing('sar_confidence', True)
     # quantitative_testing('sar_baseline_na', 100, save_output=True)
 
     # not including africa experiment
-    # plot_quantitative_testing(['sar', 'sar_gamma_smallnet', 'optical', 'optical_gamma_smallnet'],
-    #                           ['SAR', 'SAR gamma smallnet', 'optical', 'optical gamma smallnet'])
+    plot_quantitative_testing(['optical', 'fusiondual', 'fusiondual_semisupervised'],
+                              ['optical', 'dualstream fusion', 'dualstream fusion (semi)'])
 
     # old vs. new
     # sar

@@ -526,16 +526,16 @@ if __name__ == '__main__':
     # out_of_distribution_check(60, save_plots=False)
     # out_of_distribution_correlation('optical', 100, save_plot=False)
 
-    # quantitative_testing('optical', threshold=0.5, save_output=True)
+    # quantitative_testing('fusion', threshold=0.5, save_output=True)
     # qualitative_testing('fusiondual_gamma', False)
 
-    # plot_activation_comparison(['optical', 'fusiondual', 'fusiondual_semisupervised'], save_plots=True)
+    # plot_activation_comparison(['optical', 'fusion', 'fusiondual', 'fusiondual_semisupervised'], save_plots=True)
     # quantitative_testing('sar_confidence', True)
     # quantitative_testing('sar_baseline_na', 100, save_output=True)
 
     # not including africa experiment
-    plot_quantitative_testing(['optical', 'fusiondual', 'fusiondual_semisupervised'],
-                              ['optical', 'dualstream fusion', 'dualstream fusion (semi)'])
+    plot_quantitative_testing(['optical', 'fusion', 'fusiondual', 'fusiondual_semisupervised'],
+                              ['optical', 'fusion', 'fusion-dualstream', 'fusion-dualstream (semisupervised)'])
 
     # old vs. new
     # sar

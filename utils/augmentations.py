@@ -1,6 +1,7 @@
 import torchvision.transforms.functional as TF
 from torchvision import transforms
 import numpy as np
+import cv2
 
 
 def compose_transformations(cfg):
@@ -17,6 +18,10 @@ def compose_transformations(cfg):
 
     if cfg.AUGMENTATION.GAMMA_CORRECTION:
         transformations.append(GammaCorrection())
+
+    if cfg.AUGMENTATION.DOWNSCALE:
+        for f in cfg.AUGMENTATION.DOWNSCALE:
+            transformations.append(DownScale(f))
 
     transformations.append(Numpy2Torch())
 
@@ -83,4 +88,24 @@ class GammaCorrection(object):
         gamma = np.random.uniform(self.min_gamma, self.max_gamma, img.shape[-1])
         img_gamma_corrected = np.clip(np.power(img,gamma[np.newaxis, np.newaxis, :]), 0, 1).astype(np.float32)
         return img_gamma_corrected, label
+
+
+class DownScale(object):
+    def __init__(self, factor: int):
+        self.factor = factor
+
+    def __call__(self, args):
+        img, label = args
+        m, n, _ = img.shape
+        m_to, n_to = m // self.factor, n // self.factor
+        img = cv2.resize(img, dsize=(m_to, n_to), interpolation=cv2.INTER_NEAREST)
+        img = cv2.resize(img, dsize=(m, n), interpolation=cv2.INTER_NEAREST)
+        label = cv2.resize(label, dsize=(m_to, n_to), interpolation=cv2.INTER_NEAREST)
+        label = cv2.resize(label, dsize=(m, n), interpolation=cv2.INTER_NEAREST)
+        return img, label
+
+
+
+
+
 

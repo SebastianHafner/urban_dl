@@ -56,7 +56,7 @@ def run_inference(config_name: str, site: str):
 
 
 if __name__ == '__main__':
-    config_name = 'fusiondual'
+    config_name = 'fusion'
     cities = ['beijing', 'dakar', 'dubai', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
               'riodejanairo', 'shanghai', 'sidney', 'stockholm']
     # cities = ['stockholm', 'kairo', 'kigali', 'lagos', 'dubai', 'dakar']

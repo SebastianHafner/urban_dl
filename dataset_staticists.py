@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 from pathlib import Path
-from utils.dataloader import UrbanExtractionDataset, SpaceNet7Dataset
+from utils.datasets import UrbanExtractionDataset, SpaceNet7Dataset
 from experiment_manager.config import config
 from utils.geotiff import *
 import torch
@@ -12,16 +12,18 @@ DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 
 
-def plot_number_of_pixels(config_name: str = 'base_v2'):
+def plot_number_of_pixels(config_name: str, include_unlabeled: bool):
     cfg_file = CONFIG_PATH / f'{config_name}.yaml'
     cfg = config.load_cfg(cfg_file)
 
-    training_dataset = UrbanExtractionDataset(cfg, 'training', no_augmentations=True)
-    validation_dataset = UrbanExtractionDataset(cfg, 'validation', no_augmentations=True)
+    training_dataset = UrbanExtractionDataset(cfg, 'training', no_augmentations=True,
+                                              include_unlabeled=include_unlabeled)
+    validation_dataset = UrbanExtractionDataset(cfg, 'validation', no_augmentations=True,
+                                                include_unlabeled=include_unlabeled)
     test_dataset = SpaceNet7Dataset(cfg)
 
-    datasets = [test_dataset, validation_dataset, training_dataset]
-    labels = ['test', 'validation', 'train']
+    train_validation = [training_dataset, validation_dataset]
+    labels = ['train', 'validation']
     # container = {'builtup': [], 'background': []}
     # for dataset, label in zip(datasets, labels):
     #     print(f'processing {label}')

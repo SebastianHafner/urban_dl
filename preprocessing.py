@@ -117,6 +117,13 @@ if __name__ == '__main__':
                      'toronto', 'tucson', 'vancouver', 'winnipeg']
     unlabeled_sites = ['beijing', 'dakar', 'dubai', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano',
                        'mumbai', 'riodejanairo', 'shanghai', 'sidney', 'stockholm']
+    unlabeled_sites = ['buenosaires', 'bogota', 'sanjose', 'santiagodechile', 'kapstadt', 'tripoli', 'freetown',
+                       'london', 'madrid', 'kinshasa', 'manila', 'moscow', 'newdehli', 'nursultan', 'perth', 'tokio']
+    unlabeled_sites = ['maputo', 'caracas', 'santacruzdelasierra', 'saopaulo', 'asuncion', 'lima', 'paramaribo',
+                       'libreville', 'djibuti', 'beirut', 'baghdad', 'athens', 'islamabad', 'hanoi', 'bangkok',
+                       'dhaka', 'bengaluru', 'taipeh', 'berlin', 'nanning', 'wuhan']
+    unlabeled_sites = ['daressalam']
+
     all_sites = labeled_sites + unlabeled_sites
     all_sites = unlabeled_sites
     for i, site in enumerate(all_sites):

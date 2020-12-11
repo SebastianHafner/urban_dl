@@ -24,7 +24,8 @@ def model_evaluation(net, cfg, device, thresholds: torch.Tensor, run_type: str, 
 
         measurer.add_sample(y_true, y_pred)
 
-    dataset = datasets.UrbanExtractionDataset(cfg=cfg, dataset=run_type, no_augmentations=True)
+    dataset = datasets.UrbanExtractionDataset(cfg=cfg, dataset=run_type, no_augmentations=True,
+                                              include_unlabeled=False)
     inference_loop(net, cfg, device, evaluate, max_samples=max_samples, dataset=dataset)
 
     print(f'Computing {run_type} F1 score ', end=' ', flush=True)

@@ -68,7 +68,6 @@ def train_net(net, cfg):
 
     # for logging
     thresholds = torch.linspace(0, 1, 101)
-    train_argmaxF1 = validation_argmaxF1 = 0
 
     for epoch in range(1, epochs + 1):
         print(f'Starting epoch {epoch}/{epochs}.')
@@ -120,7 +119,8 @@ def train_net(net, cfg):
                 break
             # end of batch
 
-        assert(epoch == epoch_float)
+        if not cfg.DEBUG:
+            assert(epoch == epoch_float)
         print(f'epoch float {epoch_float} (step {global_step}) - epoch {epoch}')
         if epoch in save_checkpoints and not cfg.DEBUG:
             print(f'saving network', flush=True)
@@ -136,7 +136,7 @@ def train_net(net, cfg):
                 'train_threshold': train_argmaxF1 / 100,
                 'validation_threshold': validation_argmaxF1 / 100
             })
-            model_testing(net, cfg, device, validation_argmaxF1, global_step, epoch_float)
+            model_testing(net, cfg, device, 50, global_step, epoch_float)
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@ SEED: 7
 DEBUG: True
 LOG_FREQ: 100
 OUTPUT_BASE_DIR: '/storage/shafner/urban_extraction/networks'
-SAVE_CHECKPOINTS: [5, 10, 15, 20, 25, 30]
+SAVE_CHECKPOINTS: [5, 10, 15, 20]
 INFERENCE:
   CHECKPOINT: 0
   THRESHOLDS:
@@ -32,6 +32,8 @@ DATALOADER:
   SENTINEL2_BANDS: ['B2', 'B3', 'B4', 'B5', 'B6', 'B6', 'B8', 'B8A', 'B11', 'B12']
   AUXILIARY_INPUTS: []
   FUSION_DROPOUT: False
+  INCLUDE_UNLABELED: False
+
 
 DATASETS:
   PATH: '/storage/shafner/urban_extraction/urban_dataset/'
@@ -41,7 +43,11 @@ DATASETS:
              'tucson', 'winnipeg']
   VALIDATION: ['calgary', 'newyork', 'sanfrancisco', 'vancouver']
   UNLABELED: ['beijing', 'dakar', 'dubai', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'mumbai',
-              'riodejanairo', 'shanghai']
+              'riodejanairo', 'shanghai', 'buenosaires', 'bogota', 'sanjose', 'santiagodechile', 'kapstadt', 'tripoli',
+              'freetown', 'london', 'madrid', 'kinshasa', 'manila', 'moscow', 'newdehli', 'nursultan', 'perth',
+              'tokio', 'stockholm', 'sidney', 'maputo', 'caracas', 'santacruzdelasierra', 'saopaulo', 'asuncion',
+              'lima', 'paramaribo', 'libreville', 'djibuti', 'beirut', 'baghdad', 'athens', 'islamabad', 'hanoi',
+              'bangkok', 'dhaka', 'bengaluru', 'taipeh', 'berlin', 'nanning', 'wuhan', 'daressalam', 'milano']
   TESTING: '/storage/shafner/urban_extraction/urban_dataset/sn7/'
 
 TRAINER:
@@ -54,11 +60,12 @@ AUGMENTATION:
   IMAGE_OVERSAMPLING_TYPE: 'none' # [none, simple]
   RANDOM_FLIP: True
   RANDOM_ROTATE: True
-  COLOR_SHIFT: True
-  GAMMA_CORRECTION: False
+  COLOR_SHIFT: False
+  GAMMA_CORRECTION: True
+  DOWNSCALE: []
 
 CONSISTENCY_TRAINER:
-  LOSS_FACTOR: 1
+  LOSS_FACTOR: 0.1
   WEIGHT_DECAY: 0.998
   APPLY_THRESHOLD: False
-  CONSISTENCY_LOSS_TYPE: 'MeanSquareErrorLoss'
+  CONSISTENCY_LOSS_TYPE: 'JaccardLikeLoss'

@@ -13,7 +13,7 @@ from utils.geotiff import *
 class UrbanExtractionDataset(torch.utils.data.Dataset):
 
     def __init__(self, cfg, dataset: str, include_projection: bool = False, no_augmentations: bool = False,
-                 include_unlabeled: bool = False):
+                 include_unlabeled: bool = True):
         super().__init__()
 
         self.cfg = cfg
@@ -27,7 +27,8 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         else:  # used to load only 1 city passed as dataset
             self.sites = [dataset]
 
-        if include_unlabeled:
+        # using parameter include_unlabeled to overwrite config
+        if cfg.DATALOADER.INCLUDE_UNLABELED and include_unlabeled:
             self.sites += cfg.DATASETS.UNLABELED
 
         self.no_augmentations = no_augmentations

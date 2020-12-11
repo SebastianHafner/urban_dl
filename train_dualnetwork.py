@@ -40,8 +40,7 @@ def train_net(net, cfg):
     sar_criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
     optical_criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
     fusion_criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
-    sar_consistency_criterion = get_criterion(cfg.CONSISTENCY_TRAINER.CONSISTENCY_LOSS_TYPE)
-    optical_consistency_criterion = get_criterion(cfg.CONSISTENCY_TRAINER.CONSISTENCY_LOSS_TYPE)
+    consistency_criterion = get_criterion(cfg.CONSISTENCY_TRAINER.CONSISTENCY_LOSS_TYPE)
 
     if torch.cuda.device_count() > 1:
         print(torch.cuda.device_count(), " GPUs!")
@@ -50,7 +49,7 @@ def train_net(net, cfg):
     net.to(device)
 
     # reset the generators
-    dataset = UrbanExtractionDataset(cfg=cfg, dataset='training', include_unlabeled=True)
+    dataset = UrbanExtractionDataset(cfg=cfg, dataset='training')
     print(dataset)
 
     dataloader_kwargs = {
@@ -72,15 +71,13 @@ def train_net(net, cfg):
 
     # for logging
     thresholds = torch.linspace(0, 1, 101)
-    train_argmaxF1 = validation_argmaxF1 = 0
 
     for epoch in range(1, epochs + 1):
         print(f'Starting epoch {epoch}/{epochs}.')
 
         start = timeit.default_timer()
         sar_loss_set, optical_loss_set, fusion_loss_set = [], [], []
-        sar_consistency_loss_set, optical_consistency_loss_set = [], []
-        supervised_loss_set, loss_set = [], [], []
+        supervised_loss_set, consistency_loss_set, loss_set = [], [], []
         n_labeled, n_notlabeled = 0, 0
 
         for i, batch in enumerate(dataloader):
@@ -97,6 +94,7 @@ def train_net(net, cfg):
 
             supervised_loss, consistency_loss = None, None
 
+            # supervised loss
             if is_labeled.any():
                 sar_loss = sar_criterion(sar_logits[is_labeled], y_gts)
                 sar_loss_set.append(sar_loss.item())
@@ -111,22 +109,20 @@ def train_net(net, cfg):
                 supervised_loss = sar_loss + optical_loss + fusion_loss
                 supervised_loss_set.append(supervised_loss.item())
 
+            # consistency loss for semi-supervised training
             if not is_labeled.all():
                 not_labeled = torch.logical_not(is_labeled)
-                sar_probs = torch.sigmoid(sar_logits)
-                optical_probs = torch.sigmoid(optical_probs)
-                sar_consistency_loss = sar_consistency_criterion(optical_logits[not_labeled, ],
-                                                                 sar_probs[not_labeled, ])
-                optical_consistency_loss = optical_consistency_criterion(sar_logits[not_labeled, ],
-                                                                         optical_probs[not_labeled, ])
-                sar_consistency_loss_set.append(sar_consistency_loss.item())
-                optical_consistency_loss_set.append(optical_consistency_loss.item())
                 n_notlabeled += torch.sum(not_labeled).item()
 
+                sar_probs = torch.sigmoid(sar_logits)
+                consistency_loss = consistency_criterion(optical_logits[not_labeled,], sar_probs[not_labeled, ])
+                consistency_loss = cfg.CONSISTENCY_TRAINER.LOSS_FACTOR * consistency_loss
+                consistency_loss_set.append(consistency_loss.item())
+
             if supervised_loss is None and consistency_loss is not None:
-                loss = cfg.CONSISTENCY_TRAINER.LOSS_FACTOR * consistency_loss
+                loss = consistency_loss
             elif supervised_loss is not None and consistency_loss is not None:
-                loss = supervised_loss + cfg.CONSISTENCY_TRAINER.LOSS_FACTOR * consistency_loss
+                loss = supervised_loss + consistency_loss
             else:
                 loss = supervised_loss
 
@@ -154,8 +150,7 @@ def train_net(net, cfg):
                     'optical_loss': np.mean(optical_loss_set),
                     'fusion_loss': np.mean(fusion_loss_set),
                     'supervised_loss': np.mean(supervised_loss_set),
-                    'sar_consistency_loss': np.mean(sar_consistency_loss_set),
-                    'optical_consistency_loss': np.mean(optical_consistency_loss_set),
+                    'consistency_loss': np.mean(consistency_loss_set) if consistency_loss_set else 0,
                     'loss_set': np.mean(loss_set),
                     'labeled_percentage': labeled_percentage,
                     'time': time,
@@ -164,15 +159,15 @@ def train_net(net, cfg):
                 })
                 start = timeit.default_timer()
                 sar_loss_set, optical_loss_set, fusion_loss_set = [], [], []
-                sar_consistency_loss_set, optical_consistency_loss_set = [], []
-                supervised_loss_set, loss_set = [], []
+                supervised_loss_set, consistency_loss_set, loss_set = [], [], []
                 n_labeled, n_notlabeled = 0, 0
 
             if cfg.DEBUG:
                 break
             # end of batch
 
-        assert (epoch == epoch_float)
+        if not cfg.DEBUG:
+            assert (epoch == epoch_float)
         if epoch in save_checkpoints and not cfg.DEBUG:
             print(f'saving network', flush=True)
             net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}_{epoch}.pkl'
@@ -187,7 +182,7 @@ def train_net(net, cfg):
                 'train_threshold': train_argmaxF1 / 100,
                 'validation_threshold': validation_argmaxF1 / 100
             })
-            model_testing(net, cfg, device, validation_argmaxF1, global_step, epoch_float)
+            model_testing(net, cfg, device, 50, global_step, epoch_float)
 
 
 if __name__ == '__main__':

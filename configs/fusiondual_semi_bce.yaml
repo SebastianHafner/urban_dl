@@ -1,8 +1,8 @@
-_BASE_: "base_extended.yaml"
+_BASE_: "base.yaml"
 DEBUG: False
 LOG_FREQ: 500
 INFERENCE:
-  CHECKPOINT: 0
+  CHECKPOINT: 20
   THRESHOLDS:
     TRAIN: 0.00
     VALIDATION: 0.00

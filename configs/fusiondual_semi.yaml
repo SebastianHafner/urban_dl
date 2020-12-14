@@ -1,14 +1,16 @@
 _BASE_: "base.yaml"
 DEBUG: False
+LOG_FREQ: 500
 INFERENCE:
-  CHECKPOINT: 20
+  CHECKPOINT: 0
   THRESHOLDS:
     TRAIN: 0.00
     VALIDATION: 0.00
 
 MODEL:
-  TYPE: 'unet'
+  TYPE: 'dualstreamunet'
   IN_CHANNELS: 12
 
 DATALOADER:
   MODE: 'fusion'
+  INCLUDE_UNLABELED: True

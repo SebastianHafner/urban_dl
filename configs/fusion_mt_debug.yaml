@@ -1,8 +1,0 @@
-_BASE_: "fusion_mt.yaml"
-DEBUG: False
-SAVE_CHECKPOINTS: [1]
-INFERENCE:
-  CHECKPOINT: 1
-  THRESHOLDS:
-    TRAIN: 0.0
-    VALIDATION: 0.0

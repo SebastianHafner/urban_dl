@@ -115,6 +115,8 @@ def train_net(net, cfg):
                 n_notlabeled += torch.sum(not_labeled).item()
 
                 sar_probs = torch.sigmoid(sar_logits)
+                sar_probs = (sar_probs > 0.5).float() if cfg.CONSISTENCY_TRAINER.APPLY_THRESHOLD else sar_probs
+
                 consistency_loss = consistency_criterion(optical_logits[not_labeled,], sar_probs[not_labeled, ])
                 consistency_loss = cfg.CONSISTENCY_TRAINER.LOSS_FACTOR * consistency_loss
                 consistency_loss_set.append(consistency_loss.item())

@@ -188,7 +188,6 @@ def advanced_qualitative_testing(config_name: str, checkpoint: int, save_plots: 
 
             plot_prediction(axs[1, 2], pred, show_title=True)
 
-
         title = f'{config_name} {aoi_id} ({country}, {group})'
         if save_plots:
             path = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'histogram' / config_name
@@ -527,7 +526,7 @@ if __name__ == '__main__':
     # out_of_distribution_correlation('optical', 100, save_plot=False)
 
     # quantitative_testing('fusion', threshold=0.5, save_output=True)
-    qualitative_testing('fusiondual_semisupervised_extended', False)
+    qualitative_testing('sar', False)
 
     # plot_activation_comparison(['optical', 'fusion', 'fusiondual', 'fusiondual_semisupervised'], save_plots=True)
     # quantitative_testing('sar_confidence', True)

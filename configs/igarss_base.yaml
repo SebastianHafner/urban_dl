@@ -2,7 +2,7 @@ SEED: 7
 DEBUG: True
 LOG_FREQ: 100
 OUTPUT_BASE_DIR: '/storage/shafner/urban_extraction/networks'
-SAVE_CHECKPOINTS: [20]
+SAVE_CHECKPOINTS: [20, 40]
 INFERENCE:
   CHECKPOINT: 0
   THRESHOLDS:
@@ -39,13 +39,13 @@ DATASETS:
   PATH: '/storage/shafner/urban_extraction/urban_dataset/'
   TRAINING: ['atlanta', 'dallas', 'denver', 'lasvegas', 'losangeles', 'seattle']
   VALIDATION: ['newyork', 'sanfrancisco']
-  UNLABELED: []
+  UNLABELED: ['stockholm', 'daressalam', 'kampala', 'sidney']
   TESTING: '/storage/shafner/urban_extraction/urban_dataset/sn7/'
 
 TRAINER:
   LR: 1e-4
-  BATCH_SIZE: 8
-  EPOCHS: 20
+  BATCH_SIZE: 16
+  EPOCHS: 40
   OPTIMIZER: 'adamw'
 
 AUGMENTATION:

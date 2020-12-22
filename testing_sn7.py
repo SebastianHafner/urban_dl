@@ -314,7 +314,7 @@ def out_of_distribution_correlation(config_name: str, checkpoint: int, save_plot
             mean_pos_probabilities.append(mean_prob_pos)
             mean_prob_neg = np.mean(np.ma.array(1 - prob, mask=pred))
 
-    # computing R square
+    # computing R squarec
     f1_scores = np.array(f1_scores)
     mean_pos_probabilities = np.array(mean_pos_probabilities)
     corr = np.corrcoef(mean_pos_probabilities, f1_scores)

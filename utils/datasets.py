@@ -28,7 +28,8 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
             self.sites = [dataset]
 
         # using parameter include_unlabeled to overwrite config
-        if cfg.DATALOADER.INCLUDE_UNLABELED and include_unlabeled:
+        include_unlabeled = cfg.DATALOADER.INCLUDE_UNLABELED and include_unlabeled
+        if include_unlabeled:
             self.sites += cfg.DATASETS.UNLABELED
 
         self.no_augmentations = no_augmentations
@@ -39,6 +40,10 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
             samples_file = self.root_dir / site / 'samples.json'
             metadata = load_json(samples_file)
             samples = metadata['samples']
+            # making sure unlabeled data is not used as labeled when labels exist
+            if include_unlabeled and site in cfg.DATASETS.UNLABELED:
+                for sample in samples:
+                    sample['is_labeled'] = False
             self.samples += samples
             s1_bands = metadata['sentinel1_features']
             s2_bands = metadata['sentinel2_features']

@@ -122,10 +122,11 @@ if __name__ == '__main__':
     unlabeled_sites = ['maputo', 'caracas', 'santacruzdelasierra', 'saopaulo', 'asuncion', 'lima', 'paramaribo',
                        'libreville', 'djibuti', 'beirut', 'baghdad', 'athens', 'islamabad', 'hanoi', 'bangkok',
                        'dhaka', 'bengaluru', 'taipeh', 'berlin', 'nanning', 'wuhan']
-    unlabeled_sites = ['daressalam']
+
+    labeled_sites = ['kampala', 'stockholm', 'daressalam', 'sidney']
+    unlabeled_sites = []
 
     all_sites = labeled_sites + unlabeled_sites
-    all_sites = unlabeled_sites
     for i, site in enumerate(all_sites):
         if i >= 0:
             labeled = True if site in labeled_sites else False

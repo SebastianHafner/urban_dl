@@ -56,8 +56,9 @@ def run_inference(config_name: str, site: str):
 
 
 if __name__ == '__main__':
-    config_name = 'optical'
+    config_name = 'igarss_sar'
     cities = ['nanning', 'santiagodechile', 'beirut', 'lagos', 'newdehli']
-    for city in cities:
+    cities_igarss = ['stockholm', 'kampala', 'daressalam', 'sidney']
+    for city in cities_igarss:
         run_inference(config_name, city)
 

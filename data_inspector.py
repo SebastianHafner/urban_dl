@@ -80,7 +80,7 @@ def show_patches(city: str, n: int):
         plt.close()
 
 
-def patches2png_new(site: str, product: str, band_indices: list, rescale_factor: float = 1):
+def patches2png(site: str, product: str, band_indices: list, rescale_factor: float = 1):
     # config inference directory
     save_path = ROOT_PATH / 'plots' / 'inspection'
     save_path.mkdir(exist_ok=True)
@@ -115,6 +115,46 @@ def patches2png_new(site: str, product: str, band_indices: list, rescale_factor:
     plt.savefig(save_file, dpi=300, bbox_inches='tight')
 
 
+def patches2tif(site: str, product: str, bands: list):
+
+    # config inference directory
+    save_path = ROOT_PATH / 'inspection'
+    save_path.mkdir(exist_ok=True)
+
+    # loading metadata and unpacking
+    folder = ROOT_PATH / 'urban_dataset' / site
+    metadata = load_json(folder / 'samples.json')
+    patches, patch_size = metadata['samples'], metadata['patch_size']
+    max_x, max_y = metadata['max_x'], metadata['max_y']
+    if product == 'sentinel2':
+        features = metadata['sentinel2_features']
+    elif product == 'sentinel1':
+        features = metadata['sentinel1_features']
+    else:
+        features = [metadata['label']]
+    band_indices = [features.index(band) for band in bands]
+
+    # creating container for img
+    arr = np.zeros((max_y + patch_size, max_x + patch_size, len(bands)))
+    geotransform, crs = None, None
+
+    # filling img
+    for index, patch in enumerate(tqdm(patches)):
+
+        patch_id = patch['patch_id']
+        patch_file = folder / product / f'{product}_{site}_{patch_id}.tif'
+
+        if patch_id == '0000000000-0000000000':
+            patch_data, geotransform, crs = read_tif(patch_file)
+        else:
+            patch_data, _, _ = read_tif(patch_file)
+        y, x = id2yx(patch_id)
+        arr[y:y + patch_size, x:x + patch_size, :] = patch_data[:, :, band_indices]
+
+    save_file = save_path / f'{site}_{product}.tif'
+    write_tif(save_file, arr, geotransform, crs)
+
+
 if __name__ == '__main__':
 
     # show_patches('kigali', 20)
@@ -139,8 +179,15 @@ if __name__ == '__main__':
     unlabeled_sites = ['beijing', 'jakarta', 'kairo', 'kigali', 'lagos', 'mexicocity', 'milano', 'mumbai',
                        'riodejanairo', 'shanghai', 'sidney', 'stockholm']
 
+    labeled_sites = ['stockholm', 'daressalam', 'kampala', 'sidney']
+    unlabeled_sites = []
+
+    # for site in labeled_sites + unlabeled_sites:
+    #     for sensor, indices, factor in zip(['sentinel1', 'sentinel2'], [[0], [2, 1, 0]], [1, 0.3]):
+    #         patches2png(site, sensor, indices, factor)
+    #     if site in labeled_sites:
+    #         patches2png(site, 'buildings', [0], 1)
+
     for site in labeled_sites + unlabeled_sites:
-        for sensor, indices, factor in zip(['sentinel1', 'sentinel2'], [[0], [2, 1, 0]], [1, 0.3]):
-            patches2png_new(site, sensor, indices, factor)
-        if site in labeled_sites:
-            patches2png_new(site, 'buildings', [0], 1)
+        for p, b in zip(['sentinel1', 'sentinel2', 'buildings'], [['VV', 'VH'], ['B2', 'B3', 'B4', 'B8'], ['buildings']]):
+            patches2tif(site, p, b)

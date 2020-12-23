@@ -605,15 +605,22 @@ class TilesInferenceDataset(torch.utils.data.Dataset):
                 j_end = (j + 1) * self.patch_size
                 extended_patch[i_start:i_end, j_start:j_end, :] = patch
 
-        dummy_label = np.zeros((extended_patch.shape[0], extended_patch.shape[1], 1), dtype=np.float32)
-        extended_patch, _ = self.transform((extended_patch, dummy_label))
+        if sample['is_labeled']:
+            label, _, _ = self._get_label_data(patch_id_center)
+        else:
+            # dummy_label = np.zeros((extended_patch.shape[0], extended_patch.shape[1], 1), dtype=np.float32)
+            dummy_label = np.zeros((self.patch_size, self.patch_size, 1), dtype=np.float32)
+            label = dummy_label
+        extended_patch, label = self.transform((extended_patch, label))
 
         item = {
             'x': extended_patch,
+            'y': label,
             'i': y_center,
             'j': x_center,
             'site': self.site,
             'patch_id': patch_id_center,
+            'is_labeled': sample['is_labeled']
         }
 
         return item
@@ -644,6 +651,17 @@ class TilesInferenceDataset(torch.utils.data.Dataset):
         file = self.root_dir / self.site / 'sentinel2' / f'sentinel2_{self.site}_{patch_id}.tif'
         img, transform, crs = read_tif(file)
         img = img[:, :, self.s2_indices]
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_label_data(self, patch_id):
+        label = self.cfg.DATALOADER.LABEL
+        threshold = self.cfg.DATALOADER.LABEL_THRESH
+
+        label_file = self.root_dir / self.site / label / f'{label}_{self.site}_{patch_id}.tif'
+        img, transform, crs = read_tif(label_file)
+        if threshold >= 0:
+            img = img > threshold
+
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
     def get_arr(self, dtype=np.uint8):

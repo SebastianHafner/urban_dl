@@ -67,10 +67,6 @@ def run_quantitative_evaluation(config_name: str, site: str, threshold: float = 
     # loading dataset from config (requires inference.json)
     dataset = TilesInferenceDataset(cfg, site)
 
-    # config inference directory
-    save_path = ROOT_PATH / 'inference' / config_name
-    save_path.mkdir(exist_ok=True)
-
     y_preds, y_trues = None, None
 
     thresh = threshold if threshold else cfg.INFERENCE.THRESHOLDS.VALIDATION

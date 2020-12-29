@@ -684,3 +684,65 @@ class TilesInferenceDataset(torch.utils.data.Dataset):
     def __str__(self):
         return f'Dataset with {self.length} samples across {len(self.sites)} sites.'
 
+
+class GHSLDataset(torch.utils.data.Dataset):
+
+    def __init__(self, root_path: Path, site: str, thresh: float = None):
+        super().__init__()
+
+        self.root_path = root_path
+        self.site = site
+        self.thresh = thresh
+        self.transform = transforms.Compose([Numpy2Torch()])
+
+        # getting all files
+        samples_file = self.root_path / site / 'samples.json'
+        metadata = load_json(samples_file)
+        self.samples = metadata['samples']
+        self.length = len(self.samples)
+        self.patch_size = metadata['patch_size']
+        self.max_y = metadata['max_y']
+        self.max_x = metadata['max_x']
+
+    def __getitem__(self, index):
+
+        # loading metadata of sample
+        sample = self.samples[index]
+        patch_id = sample['patch_id']
+
+        ghsl, _, _ = self._get_data('ghsl', patch_id, self.thresh)
+        label, _, _ = self._get_data('buildings', patch_id, 0)
+
+        ghsl, label = self.transform((ghsl, label))
+
+        item = {
+            'x': ghsl,
+            'y': label,
+            'site': self.site,
+            'patch_id': patch_id,
+        }
+
+        return item
+
+    def _get_data(self, label: str, patch_id: str, threshold: float):
+
+        label_file = self.root_path / self.site / label / f'{label}_{self.site}_{patch_id}.tif'
+        img, transform, crs = read_tif(label_file)
+        if threshold is not None:
+            img = img > threshold
+
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def get_arr(self, dtype=np.uint8):
+        height = self.max_y + self.patch_size
+        width = self.max_x + self.patch_size
+        return np.zeros((height, width, 1), dtype=dtype)
+
+    def get_geo(self):
+        patch_id = f'{0:010d}-{0:010d}'
+        _, transform, crs = self._get_data('ghsl', patch_id, None)
+        return transform, crs
+
+    def __len__(self):
+        return self.length
+

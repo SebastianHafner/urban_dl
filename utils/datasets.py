@@ -687,12 +687,12 @@ class TilesInferenceDataset(torch.utils.data.Dataset):
 
 class GHSLDataset(torch.utils.data.Dataset):
 
-    def __init__(self, root_path: Path, site: str, thresh: float = None):
+    def __init__(self, root_path: Path, site: str, label_thresh: float = None):
         super().__init__()
 
         self.root_path = root_path
         self.site = site
-        self.thresh = thresh
+        self.thresh = label_thresh
         self.transform = transforms.Compose([Numpy2Torch()])
 
         # getting all files
@@ -710,8 +710,8 @@ class GHSLDataset(torch.utils.data.Dataset):
         sample = self.samples[index]
         patch_id = sample['patch_id']
 
-        ghsl, _, _ = self._get_data('ghsl', patch_id, self.thresh)
-        label, _, _ = self._get_data('buildings', patch_id, 0)
+        ghsl, _, _ = self._get_ghsl(patch_id)
+        label, _, _ = self._get_label('buildings', patch_id)
 
         ghsl, label = self.transform((ghsl, label))
 
@@ -724,12 +724,20 @@ class GHSLDataset(torch.utils.data.Dataset):
 
         return item
 
-    def _get_data(self, label: str, patch_id: str, threshold: float):
+    def _get_label(self, label_name: str, patch_id: str):
 
-        label_file = self.root_path / self.site / label / f'{label}_{self.site}_{patch_id}.tif'
+        label_file = self.root_path / self.site / label_name / f'{label_name}_{self.site}_{patch_id}.tif'
         img, transform, crs = read_tif(label_file)
-        if threshold is not None:
-            img = img > threshold
+        if self.thresh is not None:
+            img = img > self.thresh
+
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_ghsl(self, patch_id: str):
+
+        ghsl_file = self.root_path / self.site / 'ghsl' / f'ghsl_{self.site}_{patch_id}.tif'
+        img, transform, crs = read_tif(ghsl_file)
+        img = img / 100
 
         return np.nan_to_num(img).astype(np.float32), transform, crs
 

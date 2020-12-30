@@ -39,38 +39,44 @@ def merge_patches(site: str, thresh: float = None):
     write_tif(output_file, ghsl_output, transform, crs)
 
 
-def run_quantitative_evaluation(site: str, thresh: float = None):
+def run_quantitative_evaluation(site: str, thresh: float = 0.5, save_output: bool = False):
     print(f'running inference for {site}...')
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    dataset = GHSLDataset(ROOT_PATH / 'urban_dataset', site, thresh=thresh)
+    dataset = GHSLDataset(ROOT_PATH / 'urban_dataset', site, label_thresh=0)
 
-    y_preds, y_trues = None, None
+    y_probs, y_trues = None, None
 
     with torch.no_grad():
         for i in tqdm(range(len(dataset))):
             patch = dataset.__getitem__(i)
-            ghsl_prob = patch['x'].to(device).squeeze().flatten()
-            label = patch['y'].to(device)
-            label = label.flatten().float()
+            ghsl_prob = patch['x'].cpu().squeeze().flatten()
+            label = patch['y'].cpu().flatten()
 
-            if y_preds is not None:
-                y_preds = torch.cat((y_preds, ghsl_prob), dim=0)
+            if y_probs is not None:
+                y_probs = torch.cat((y_probs, ghsl_prob), dim=0)
                 y_trues = torch.cat((y_trues, label), dim=0)
             else:
-                y_preds = ghsl_prob
+                y_probs = ghsl_prob
                 y_trues = label
 
-        prec = precision(y_trues, y_preds, dim=0)
-        rec = recall(y_trues, y_preds, dim=0)
-        f1 = f1_score(y_trues, y_preds, dim=0)
-        print(f'{site}: f1 score {f1:.3f} - precision {prec:.3f} - recall {rec:.3f}')
-
-
+        if save_output:
+            y_probs = y_probs.numpy()
+            y_trues = y_trues.numpy()
+            output_data = np.stack((y_trues, y_probs))
+            output_path = ROOT_PATH / 'quantitative_evaluation' / 'ghsl'
+            output_path.mkdir(exist_ok=True)
+            output_file = output_path / f'{site}_ghsl.npy'
+            np.save(output_file, output_data)
+        else:
+            y_preds = (y_probs > thresh).float()
+            prec = precision(y_trues, y_preds, dim=0)
+            rec = recall(y_trues, y_preds, dim=0)
+            f1 = f1_score(y_trues, y_preds, dim=0)
+            print(f'{site}: f1 score {f1:.3f} - precision {prec:.3f} - recall {rec:.3f}')
 
 
 if __name__ == '__main__':
     cities_igarss = ['stockholm', 'kampala', 'daressalam', 'sidney']
     for city in cities_igarss:
         # merge_patches(city)
-        run_quantitative_evaluation(city, thresh=50)
+        run_quantitative_evaluation(city, save_output=True)

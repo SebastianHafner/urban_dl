@@ -142,10 +142,11 @@ def plot_precision_recall_curve(site: str, config_names: list, names: list = Non
     plt.show()
     plt.close(fig)
 
+
 if __name__ == '__main__':
     config_name = 'igarss_optical'
     cities = ['nanning', 'santiagodechile', 'beirut', 'lagos', 'newdehli']
-    cities_igarss = ['stockholm', 'kampala', 'daressalam', 'sidney']
+    cities_igarss = ['stockholm', 'kampala', 'daressalam', 'sidney', 'newyork', 'sanfrancisco']
     for i, city in enumerate(cities_igarss):
         legend = True if i == 0 else False
         # run_inference(config_name, city)

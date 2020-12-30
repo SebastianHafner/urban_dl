@@ -77,6 +77,7 @@ def run_quantitative_evaluation(site: str, thresh: float = 0.5, save_output: boo
 
 if __name__ == '__main__':
     cities_igarss = ['stockholm', 'kampala', 'daressalam', 'sidney']
+    cities_igarss = ['newyork', 'sanfrancisco']
     for city in cities_igarss:
         # merge_patches(city)
         run_quantitative_evaluation(city, save_output=True)

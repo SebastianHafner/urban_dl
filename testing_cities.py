@@ -110,10 +110,11 @@ def run_quantitative_evaluation(config_name: str, site: str, threshold: float = 
             print(f'{site}: f1 score {f1:.3f} - precision {prec:.3f} - recall {rec:.3f}')
 
 
-def plot_precision_recall_curve(site: str, config_names: list, names: list = None, show_legend: bool = False):
+def plot_precision_recall_curve(site: str, config_names: list, names: list = None, show_legend: bool = False,
+                                save_plot: bool = False):
 
     fig, ax = plt.subplots()
-    fontsize = 14
+    fontsize = 18
     mpl.rcParams.update({'font.size': fontsize})
 
     # getting data and if not available produce
@@ -139,6 +140,9 @@ def plot_precision_recall_curve(site: str, config_names: list, names: list = Non
         ax.set_yticklabels(tick_labels, fontsize=fontsize)
         if show_legend:
             ax.legend()
+    if save_plot:
+        plot_file = ROOT_PATH / 'plots' / 'precision_recall_curve' / f'{site}_{"".join(config_names)}.png'
+        plt.savefig(plot_file, dpi=300, bbox_inches='tight')
     plt.show()
     plt.close(fig)
 
@@ -148,9 +152,10 @@ if __name__ == '__main__':
     cities = ['nanning', 'santiagodechile', 'beirut', 'lagos', 'newdehli']
     cities_igarss = ['stockholm', 'kampala', 'daressalam', 'sidney', 'newyork', 'sanfrancisco']
     for i, city in enumerate(cities_igarss):
-        legend = True if i == 0 else False
+        legend = True if city == 'sanfrancisco' else False
         # run_inference(config_name, city)
         # run_quantitative_evaluation(config_name, city, threshold=0.5, save_output=True)
 
         plot_precision_recall_curve(city, ['igarss_sar', 'igarss_optical', 'igarss_fusion', 'ghsl'],
-                                    names=['SAR', 'Optical', 'Fusion', 'GHSL'], show_legend=legend)
+                                    names=['SAR', 'Optical', 'Fusion', 'GHSL'], show_legend=legend,
+                                    save_plot=True)

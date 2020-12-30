@@ -1,6 +1,6 @@
 from pathlib import Path
 from networks.network_loader import load_network
-from utils.dataloader import UrbanExtractionDataset
+from utils.datasets import TilesInferenceDataset
 from experiment_manager.config import config
 from utils.metrics import *
 from tqdm import tqdm
@@ -10,8 +10,9 @@ import json
 import matplotlib.pyplot as plt
 
 DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_extraction')
-CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
+ROOT_PATH = Path('/storage/shafner/urban_extraction')
+CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 
 
 def compute_accuracy_metrics(config_name: str, checkpoint: int, output_file: Path = None):
@@ -91,14 +92,64 @@ def plot_quantitative_results(files: list, names: list, run_type: str):
         plt.show()
 
 
-if __name__ == '__main__':
-    config_name = 'baseline_fusion'
-    checkpoint = 100
-    output_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_{config_name}.json'
-    compute_accuracy_metrics(config_name, checkpoint)
+def run_quantitative_assessment(config_name: str, threshold: float = None, save_output: bool = False):
 
-    # TODO: only pass config name to function
-    # fusion_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_fusion.json'
-    # optical_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_optical.json'
-    # sar_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_sar.json'
-    # plot_quantitative_results([sar_file, optical_file, fusion_file], ['SAR', 'optical', 'fusion'], 'validation')
+    # loading config and network
+    cfg = config.load_cfg(Path.cwd() / 'configs' / f'{config_name}.yaml')
+    net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{config_name}_{cfg.INFERENCE.CHECKPOINT}.pkl'
+    net = load_network(cfg, net_file)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    net.to(device)
+    net.eval()
+
+    sites = {
+        'train': cfg.DATASETS.TRAINING,
+        'validation': cfg.DATASETS.VALIDATION,
+        'test': cfg.DATASETS.UNLABELED
+    }
+
+    thresh = threshold if threshold else cfg.INFERENCE.THRESHOLDS.VALIDATION
+
+    for dataset_name, sites in sites.items():
+        y_probs, y_trues = None, None
+        for site in sites:
+            dataset = TilesInferenceDataset(cfg, site)
+            with torch.no_grad():
+                for i in tqdm(range(len(dataset))):
+                    patch = dataset.__getitem__(i)
+                    img = patch['x'].to(device)
+                    logits = net(img.unsqueeze(0))
+                    prob = torch.sigmoid(logits).squeeze()
+
+                    center_prob = prob[dataset.patch_size:dataset.patch_size * 2, dataset.patch_size:dataset.patch_size * 2]
+                    center_prob = center_prob.flatten().float().cpu()
+
+                    assert (patch['is_labeled'])
+                    label = patch['y'].flatten().float().cpu()
+
+                    if y_probs is not None:
+                        y_probs = torch.cat((y_probs, center_prob), dim=0)
+                        y_trues = torch.cat((y_trues, label), dim=0)
+                    else:
+                        y_probs = center_prob
+                        y_trues = label
+
+        if save_output:
+            y_probs = y_probs.numpy()
+            y_trues = y_trues.numpy()
+            output_data = np.stack((y_trues, y_probs))
+            output_path = ROOT_PATH / 'quantitative_evaluation' / config_name
+            output_path.mkdir(exist_ok=True)
+            output_file = output_path / f'{"".join(sites)}_{config_name}.npy'
+            np.save(output_file, output_data)
+        else:
+            y_preds = (y_probs > thresh).float()
+            prec = precision(y_trues, y_preds, dim=0)
+            rec = recall(y_trues, y_preds, dim=0)
+            f1 = f1_score(y_trues, y_preds, dim=0)
+            print(f'{dataset_name}: f1 score {f1:.3f} - precision {prec:.3f} - recall {rec:.3f}')
+
+
+if __name__ == '__main__':
+    config_name = 'igarss_sar'
+    run_quantitative_assessment(config_name, threshold=0.5)

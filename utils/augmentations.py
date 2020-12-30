@@ -23,6 +23,12 @@ def compose_transformations(cfg):
         for f in cfg.AUGMENTATION.DOWNSCALE:
             transformations.append(DownScale(f))
 
+    if cfg.AUGMENTATION.SENSOR_DROPOUT:
+        transformations.append(SensorDropout(cfg))
+
+    if cfg.AUGMENTATION.CHANNEL_DROPOUT:
+        transformations.append(ChannelDropout(cfg))
+
     transformations.append(Numpy2Torch())
 
     return transforms.Compose(transformations)
@@ -102,6 +108,39 @@ class DownScale(object):
         img = cv2.resize(img, dsize=(m, n), interpolation=cv2.INTER_NEAREST)
         label = cv2.resize(label, dsize=(m_to, n_to), interpolation=cv2.INTER_NEAREST)
         label = cv2.resize(label, dsize=(m, n), interpolation=cv2.INTER_NEAREST)
+        return img, label
+
+
+class SensorDropout(object):
+    def __init__(self, cfg):
+        assert(cfg.DATALOADER.MODE == 'fusion')
+        self.split_index = len(cfg.DATALOADER.SENTINEL1_BANDS)
+
+    def __call__(self, args):
+        img, label = args
+        s1_img = img[:, :, :self.split_index]
+        s2_img = img[:, :, self.split_index:]
+        dropout_layer = np.random.randint(0, 3)
+        if dropout_layer == 1:
+            s1_img[...] = 0
+        if dropout_layer == 2:
+            s2_img[...] = 0
+        img = np.concatenate([s1_img, s2_img], axis=-1)
+        return img, label
+
+
+class ChannelDropout(object):
+    def __init__(self, cfg):
+        n_s1 = len(cfg.DATALOADER.SENTINEL1_BANDS)
+        n_s2 = len(cfg.DATALOADER.SENTINEL2_BANDS)
+        self.n = n_s1 + n_s2
+
+    def __call__(self, args):
+        img, label = args
+        dropout_layer = np.random.randint(0, self.n + 1)
+        # no dropout possible
+        if not dropout_layer == self.n:
+            img[:, :, dropout_layer] = 0
         return img, label
 
 

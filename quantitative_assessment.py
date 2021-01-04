@@ -151,5 +151,5 @@ def run_quantitative_assessment(config_name: str, threshold: float = None, save_
 
 
 if __name__ == '__main__':
-    config_name = 'igarss_optical'
+    config_name = 'igarss_fusion'
     run_quantitative_assessment(config_name)

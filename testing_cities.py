@@ -152,10 +152,14 @@ if __name__ == '__main__':
     cities = ['nanning', 'santiagodechile', 'beirut', 'lagos', 'newdehli']
     cities_igarss = ['stockholm', 'kampala', 'daressalam', 'sidney', 'newyork', 'sanfrancisco']
     for i, city in enumerate(cities_igarss):
-        legend = True if city == 'sanfrancisco' else False
+        legend = True if city == 'stockholm' else False
         # run_inference(config_name, city)
         # run_quantitative_evaluation(config_name, city, threshold=0.5, save_output=True)
 
-        plot_precision_recall_curve(city, ['igarss_sar', 'igarss_optical', 'igarss_fusion', 'ghsl'],
-                                    names=['SAR', 'Optical', 'Fusion', 'GHSL'], show_legend=legend,
+        # plot_precision_recall_curve(city, ['igarss_sar', 'igarss_optical', 'igarss_fusion', 'ghsl'],
+        #                             names=['SAR', 'Optical', 'Fusion', 'GHSL'], show_legend=legend,
+        #                             save_plot=True)
+
+        plot_precision_recall_curve(city, ['igarss_fusion', 'igarss_sensordropout', 'igarss_channeldropout'],
+                                    names=['Fusion', 'Fusion-SD', 'Fusion-CD'], show_legend=legend,
                                     save_plot=True)

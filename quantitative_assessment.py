@@ -108,7 +108,7 @@ def run_quantitative_assessment(config_name: str, threshold: float = None, save_
         'test': cfg.DATASETS.UNLABELED
     }
 
-    thresh = threshold if threshold else cfg.INFERENCE.THRESHOLDS.VALIDATION
+    thresh = threshold if threshold is not None else cfg.INFERENCE.THRESHOLDS.TRAIN
 
     for dataset_name, sites in sites.items():
         y_probs, y_trues = None, None
@@ -151,5 +151,5 @@ def run_quantitative_assessment(config_name: str, threshold: float = None, save_
 
 
 if __name__ == '__main__':
-    config_name = 'igarss_sar'
-    run_quantitative_assessment(config_name, threshold=0.5)
+    config_name = 'igarss_optical'
+    run_quantitative_assessment(config_name)

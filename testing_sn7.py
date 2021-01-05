@@ -11,15 +11,18 @@ from utils.datasets import SpaceNet7Dataset
 from experiment_manager.config import config
 from utils.metrics import *
 from utils.geotiff import *
+from sklearn.metrics import precision_recall_curve
 
 
 # TODO: add coordinates to title for area of interests
 
 URBAN_EXTRACTION_PATH = Path('/storage/shafner/urban_extraction')
+ROOT_PATH = Path('/storage/shafner/urban_extraction')
 DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_dataset')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
 
+# TODO: add this to dataset
 GROUPS = [(1, 'NA_AU', '#63cd93'), (2, 'SA', '#f0828f'), (3, 'EU', '#6faec9'), (4, 'SSA', '#5f4ad9'),
           (5, 'NAF_ME', '#8dee47'), (6, 'AS', '#d9b657'), ('total', 'Total', '#ffffff')]
 
@@ -518,7 +521,89 @@ def plot_reference_comparison(start_index: int = 0):
             plt.close()
 
 
+def run_quantitative_inference(config_name: str):
+
+    # loading config and network
+    cfg = config.load_cfg(Path.cwd() / 'configs' / f'{config_name}.yaml')
+    net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{config_name}_{cfg.INFERENCE.CHECKPOINT}.pkl'
+    net = load_network(cfg, net_file)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    net.to(device).eval()
+
+    # loading dataset from config (requires inference.json)
+    dataset = SpaceNet7Dataset(cfg)
+
+    data = {}
+    with torch.no_grad():
+        for index in tqdm(range(len(dataset))):
+            sample = dataset.__getitem__(index)
+            img = sample['x'].to(device)
+            y_prob = net(img.unsqueeze(0))
+            y_prob = y_prob.flatten().cpu().numpy()
+            y_true = sample['y'].flatten().cpu().numpy()
+
+            group_name = sample['group_name']
+
+            if group_name not in data.keys():
+                data[group_name] = {
+                    'y_probs': np.array([]),
+                    'y_trues': np.array([])
+                }
+
+            y_probs = data[group_name]['y_probs']
+            y_trues = data[group_name]['y_trues']
+            data[group_name] = {
+                'y_probs': np.concatenate((y_probs, y_prob), axis=0),
+                'y_trues': np.concatenate((y_trues, y_true), axis=0)
+            }
+
+        output_file = ROOT_PATH / 'testing' / f'probabilities_{config_name}.npy'
+        output_file.parent.mkdir(exist_ok=True)
+        np.save(output_file, data)
+
+
+
+def plot_precision_recall_curve(config_names: list, names: list = None, show_legend: bool = False,
+                                save_plot: bool = False):
+    fig, ax = plt.subplots()
+    fontsize = 18
+    mpl.rcParams.update({'font.size': fontsize})
+
+    # getting data and if not available produce
+    for i, config_name in enumerate(config_names):
+        data_file_config = ROOT_PATH / 'testing' / f'probabilities_{config_name}.npy'
+        if not data_file_config.exists():
+            run_quantitative_inference(config_name)
+        data_config = np.load(data_file_config)
+        prec, rec, thresholds = precision_recall_curve(data_config[0,], data_config[1,])
+
+        label = config_name if names is None else names[i]
+        ax.plot(rec, prec, label=label)
+        ax.set_xlim((0, 1))
+        ax.set_ylim((0, 1))
+        ax.set_xlabel('Recall', fontsize=fontsize)
+        ax.set_ylabel('Precision', fontsize=fontsize)
+        ax.set_aspect('equal', adjustable='box')
+        ticks = np.linspace(0, 1, 6)
+        tick_labels = [f'{tick:.1f}' for tick in ticks]
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(tick_labels, fontsize=fontsize)
+        ax.set_yticks(ticks)
+        ax.set_yticklabels(tick_labels, fontsize=fontsize)
+        if show_legend:
+            ax.legend()
+    if save_plot:
+        plot_file = ROOT_PATH / 'plots' / 'precision_recall_curve' / f'{site}_{"".join(config_names)}.png'
+        plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+    plt.show()
+    plt.close(fig)
+
+
 if __name__ == '__main__':
+
+
+    run_quantitative_inference('fusion')
+
     # qualitative_testing('sar', 100, save_plots=False)
     # advanced_qualitative_testing('fusion_color', 100, save_plots=False)
     # plot_reference_comparison(40)
@@ -526,7 +611,7 @@ if __name__ == '__main__':
     # out_of_distribution_correlation('optical', 100, save_plot=False)
 
     # quantitative_testing('fusion', threshold=0.5, save_output=True)
-    qualitative_testing('sar', False)
+    # qualitative_testing('sar', False)
 
     # plot_activation_comparison(['optical', 'fusion', 'fusiondual', 'fusiondual_semisupervised'], save_plots=True)
     # quantitative_testing('sar_confidence', True)

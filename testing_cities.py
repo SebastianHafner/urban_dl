@@ -15,7 +15,7 @@ ROOT_PATH = Path('/storage/shafner/urban_extraction')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 
 
-def run_inference(config_name: str, site: str):
+def run_inference(config_name: str, site: str, root_path: Path = None):
     print(f'running inference for {site} with {config_name}...')
 
     # loading config and network
@@ -27,7 +27,7 @@ def run_inference(config_name: str, site: str):
     net.eval()
 
     # loading dataset from config (requires inference.json)
-    dataset = TilesInferenceDataset(cfg, site)
+    dataset = TilesInferenceDataset(cfg, site, root_path)
 
     # config inference directory
     save_path = ROOT_PATH / 'inference' / config_name
@@ -148,18 +148,21 @@ def plot_precision_recall_curve(site: str, config_names: list, names: list = Non
 
 
 if __name__ == '__main__':
-    config_name = 'igarss_optical'
+    config_name = 'fusiondual_semisupervised'
     cities = ['nanning', 'santiagodechile', 'beirut', 'lagos', 'newdehli']
     cities_igarss = ['stockholm', 'kampala', 'daressalam', 'sidney', 'newyork', 'sanfrancisco']
-    for i, city in enumerate(cities_igarss):
+
+    cities_sdg = ['beijing2016', 'beijing2020', 'cairo2016', 'cairo2020', 'dubai2016', 'dubai2020', 'kigali2016',
+                  'kigali2020', 'riodejanairo2016', 'riodejanairo2020', 'stockholm2016', 'stockholm2020']
+    for i, city in enumerate(cities_sdg):
         legend = True if city == 'stockholm' else False
-        # run_inference(config_name, city)
+        run_inference(config_name, city, Path('/storage/shafner/urban_extraction/sdg_dataset/'))
         # run_quantitative_evaluation(config_name, city, threshold=0.5, save_output=True)
 
         # plot_precision_recall_curve(city, ['igarss_sar', 'igarss_optical', 'igarss_fusion', 'ghsl'],
         #                             names=['SAR', 'Optical', 'Fusion', 'GHSL'], show_legend=legend,
         #                             save_plot=True)
 
-        plot_precision_recall_curve(city, ['igarss_fusion', 'igarss_sensordropout', 'igarss_channeldropout'],
-                                    names=['Fusion', 'Fusion-SD', 'Fusion-CD'], show_legend=legend,
-                                    save_plot=True)
+        # plot_precision_recall_curve(city, ['igarss_fusion', 'igarss_sensordropout', 'igarss_channeldropout'],
+        #                             names=['Fusion', 'Fusion-SD', 'Fusion-CD'], show_legend=legend,
+        #                             save_plot=True)

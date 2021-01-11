@@ -541,12 +541,12 @@ class SceneInferenceDataset(torch.utils.data.Dataset):
 # dataset for classifying a scene
 class TilesInferenceDataset(torch.utils.data.Dataset):
 
-    def __init__(self, cfg, site: str):
+    def __init__(self, cfg, site: str, root_dir: Path = None):
         super().__init__()
 
         self.cfg = cfg
         self.site = site
-        self.root_dir = Path(cfg.DATASETS.PATH)
+        self.root_dir = Path(cfg.DATASETS.PATH) if root_dir is None else root_dir
         self.transform = transforms.Compose([Numpy2Torch()])
 
         # getting all files

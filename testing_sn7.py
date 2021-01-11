@@ -612,8 +612,8 @@ def plot_precision_recall_curve(config_names: list, group_name: str = None, name
     plt.close(fig)
 
 
-def plot_f1_curve(config_names: list, names: list = None, show_legend: bool = False):
-    fig, ax = plt.subplots()
+def plot_threshold_dependency(config_names: list, names: list = None, show_legend: bool = False):
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
     fontsize = 18
     mpl.rcParams.update({'font.size': fontsize})
 
@@ -632,7 +632,7 @@ def plot_f1_curve(config_names: list, names: list = None, show_legend: bool = Fa
                 y_trues = np.concatenate((y_trues, group_data['y_trues']), axis=0)
                 y_probs = np.concatenate((y_probs, group_data['y_probs']), axis=0)
 
-        f1_scores = []
+        f1_scores, precisions, recalls = [], [], []
         thresholds = np.linspace(0, 1, 101)
         for thresh in thresholds:
             y_preds = y_probs >= thresh
@@ -640,26 +640,31 @@ def plot_f1_curve(config_names: list, names: list = None, show_legend: bool = Fa
             fp = np.sum(np.logical_and(y_preds, np.logical_not(y_trues)))
             fn = np.sum(np.logical_and(y_trues, np.logical_not(y_preds)))
             prec = tp / (tp + fp)
+            precisions.append(prec)
             rec = tp / (tp + fn)
-        # prec, rec, thresholds = precision_recall_curve(y_trues, y_probs)
+            recalls.append(rec)
             f1 = 2 * (prec * rec) / (prec + rec)
             f1_scores.append(f1)
         label = config_name if names is None else names[i]
-        # print(f1_scores)
-        ax.plot(thresholds, f1_scores, label=label)
-    ax.set_xlim((0, 1))
-    ax.set_ylim((0, 1))
-    ax.set_xlabel('Threshold', fontsize=fontsize)
-    ax.set_ylabel('F1 score', fontsize=fontsize)
-    ax.set_aspect('equal', adjustable='box')
-    ticks = np.linspace(0, 1, 6)
-    tick_labels = [f'{tick:.1f}' for tick in ticks]
-    ax.set_xticks(ticks)
-    ax.set_xticklabels(tick_labels, fontsize=fontsize)
-    ax.set_yticks(ticks)
-    ax.set_yticklabels(tick_labels, fontsize=fontsize)
-    if show_legend:
-        ax.legend()
+
+        axs[0].plot(thresholds, f1_scores, label=label)
+        axs[1].plot(thresholds, precisions, label=label)
+        axs[2].plot(thresholds, recalls, label=label)
+
+    for ax, metric in zip(axs, ['F1 score', 'Precision', 'Recall']):
+        ax.set_xlim((0, 1))
+        ax.set_ylim((0, 1))
+        ax.set_xlabel('Threshold', fontsize=fontsize)
+        ax.set_ylabel(metric, fontsize=fontsize)
+        ax.set_aspect('equal', adjustable='box')
+        ticks = np.linspace(0, 1, 6)
+        tick_labels = [f'{tick:.1f}' for tick in ticks]
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(tick_labels, fontsize=fontsize)
+        ax.set_yticks(ticks)
+        ax.set_yticklabels(tick_labels, fontsize=fontsize)
+        if show_legend:
+            ax.legend()
     plot_file = ROOT_PATH / 'plots' / 'f1_curve' / f'sn7_{"".join(config_names)}.png'
     plot_file.parent.mkdir(exist_ok=True)
     plt.savefig(plot_file, dpi=300, bbox_inches='tight')
@@ -670,7 +675,7 @@ def plot_f1_curve(config_names: list, names: list = None, show_legend: bool = Fa
 if __name__ == '__main__':
 
 
-    run_quantitative_inference('fusion')
+    # run_quantitative_inference('fusion')
 
     # qualitative_testing('sar', 100, save_plots=False)
     # advanced_qualitative_testing('fusion_color', 100, save_plots=False)
@@ -680,15 +685,11 @@ if __name__ == '__main__':
 
     # quantitative_testing('fusion', threshold=0.5, save_output=True)
     # qualitative_testing('sar', False)
-<<<<<<< HEAD
-=======
-
->>>>>>> e78fb1f29009bb9d23ece208c5943f38589d7789
 
     # plot_activation_comparison(['optical', 'fusion', 'fusiondual', 'fusiondual_semisupervised'], save_plots=True)
     # quantitative_testing('sar_confidence', True)
-    # plot_precision_recall_curve(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'], None)
-    plot_f1_curve(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'])
+    # plot_precision_recall_curve(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'], 'EU')
+    plot_threshold_dependency(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'])
 
     # not including africa experiment
     # plot_quantitative_testing(['optical', 'fusion', 'fusiondual', 'fusiondual_semisupervised'],

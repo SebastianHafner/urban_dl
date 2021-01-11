@@ -109,7 +109,7 @@ def sites_split(sites: list, train_fraction: float):
 if __name__ == '__main__':
 
     # dataset_path = Path('C:/Users/shafner/urban_extraction/data/dummy_data')
-    dataset_path = Path('/storage/shafner/urban_extraction/urban_dataset')
+    dataset_path = Path('/storage/shafner/urban_extraction/sdg_dataset')
 
     labeled_sites = ['albuquerque', 'atlanta', 'calgary', 'charlston', 'columbus', 'dallas', 'denver', 'elpaso',
                      'houston', 'kansascity', 'lasvegas', 'losangeles', 'miami', 'minneapolis', 'montreal', 'newyork',
@@ -124,7 +124,9 @@ if __name__ == '__main__':
                        'dhaka', 'bengaluru', 'taipeh', 'berlin', 'nanning', 'wuhan']
 
     labeled_sites = ['kampala', 'stockholm', 'daressalam', 'sidney']
-    unlabeled_sites = []
+    labeled_sites = []
+    unlabeled_sites = ['beijing2016', 'beijing2020', 'cairo2016', 'cairo2020', 'dubai2016', 'dubai2020', 'kigali2016',
+                       'kigali2020', 'riodejanairo2016', 'riodejanairo2020', 'stockholm2016', 'stockholm2020']
 
     all_sites = labeled_sites + unlabeled_sites
     for i, site in enumerate(all_sites):

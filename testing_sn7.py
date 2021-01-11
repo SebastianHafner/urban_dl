@@ -21,6 +21,7 @@ ROOT_PATH = Path('/storage/shafner/urban_extraction')
 DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_dataset')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 NETWORK_PATH = Path('/storage/shafner/urban_extraction/networks/')
+ROOT_PATH = Path('/storage/shafner/urban_extraction')
 
 # TODO: add this to dataset
 GROUPS = [(1, 'NA_AU', '#63cd93'), (2, 'SA', '#f0828f'), (3, 'EU', '#6faec9'), (4, 'SSA', '#5f4ad9'),
@@ -539,7 +540,7 @@ def run_quantitative_inference(config_name: str):
             sample = dataset.__getitem__(index)
             img = sample['x'].to(device)
             y_prob = net(img.unsqueeze(0))
-            y_prob = y_prob.flatten().cpu().numpy()
+            y_prob = torch.sigmoid(y_prob).flatten().cpu().numpy()
             y_true = sample['y'].flatten().cpu().numpy()
 
             group_name = sample['group_name']
@@ -556,26 +557,37 @@ def run_quantitative_inference(config_name: str):
                 'y_probs': np.concatenate((y_probs, y_prob), axis=0),
                 'y_trues': np.concatenate((y_trues, y_true), axis=0)
             }
-
         output_file = ROOT_PATH / 'testing' / f'probabilities_{config_name}.npy'
         output_file.parent.mkdir(exist_ok=True)
         np.save(output_file, data)
 
 
+def plot_precision_recall_curve(config_names: list, group_name: str = None, names: list = None,
+                                show_legend: bool = False):
 
-def plot_precision_recall_curve(config_names: list, names: list = None, show_legend: bool = False,
-                                save_plot: bool = False):
     fig, ax = plt.subplots()
     fontsize = 18
     mpl.rcParams.update({'font.size': fontsize})
 
     # getting data and if not available produce
     for i, config_name in enumerate(config_names):
-        data_file_config = ROOT_PATH / 'testing' / f'probabilities_{config_name}.npy'
-        if not data_file_config.exists():
+        data_file = ROOT_PATH / 'testing' / f'probabilities_{config_name}.npy'
+        if not data_file.exists():
             run_quantitative_inference(config_name)
-        data_config = np.load(data_file_config)
-        prec, rec, thresholds = precision_recall_curve(data_config[0,], data_config[1,])
+        data = np.load(data_file, allow_pickle=True)
+        data = data[()]
+        if group_name:
+            y_trues = data[group_name]['y_trues']
+            y_probs = data[group_name]['y_probs']
+        else:
+            for i, group_data in enumerate(data.values()):
+                if i == 0:
+                    y_trues = group_data['y_trues']
+                    y_probs = group_data['y_probs']
+                else:
+                    y_trues = np.concatenate((y_trues, group_data['y_trues']), axis=0)
+                    y_probs = np.concatenate((y_probs, group_data['y_probs']), axis=0)
+        prec, rec, thresholds = precision_recall_curve(y_trues, y_probs)
 
         label = config_name if names is None else names[i]
         ax.plot(rec, prec, label=label)
@@ -592,9 +604,65 @@ def plot_precision_recall_curve(config_names: list, names: list = None, show_leg
         ax.set_yticklabels(tick_labels, fontsize=fontsize)
         if show_legend:
             ax.legend()
-    if save_plot:
-        plot_file = ROOT_PATH / 'plots' / 'precision_recall_curve' / f'{site}_{"".join(config_names)}.png'
-        plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+
+    prefix = group_name if group_name is not None else 'sn7'
+    plot_file = ROOT_PATH / 'plots' / 'precision_recall_curve' / f'{prefix}_{"".join(config_names)}.png'
+    plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+    plt.show()
+    plt.close(fig)
+
+
+def plot_f1_curve(config_names: list, names: list = None, show_legend: bool = False):
+    fig, ax = plt.subplots()
+    fontsize = 18
+    mpl.rcParams.update({'font.size': fontsize})
+
+    # getting data and if not available produce
+    for i, config_name in enumerate(config_names):
+        data_file = ROOT_PATH / 'testing' / f'probabilities_{config_name}.npy'
+        if not data_file.exists():
+            run_quantitative_inference(config_name)
+        data = np.load(data_file, allow_pickle=True)
+        data = data[()]
+        for i, group_data in enumerate(data.values()):
+            if i == 0:
+                y_trues = group_data['y_trues']
+                y_probs = group_data['y_probs']
+            else:
+                y_trues = np.concatenate((y_trues, group_data['y_trues']), axis=0)
+                y_probs = np.concatenate((y_probs, group_data['y_probs']), axis=0)
+
+        f1_scores = []
+        thresholds = np.linspace(0, 1, 101)
+        for thresh in thresholds:
+            y_preds = y_probs >= thresh
+            tp = np.sum(np.logical_and(y_trues, y_preds))
+            fp = np.sum(np.logical_and(y_preds, np.logical_not(y_trues)))
+            fn = np.sum(np.logical_and(y_trues, np.logical_not(y_preds)))
+            prec = tp / (tp + fp)
+            rec = tp / (tp + fn)
+        # prec, rec, thresholds = precision_recall_curve(y_trues, y_probs)
+            f1 = 2 * (prec * rec) / (prec + rec)
+            f1_scores.append(f1)
+        label = config_name if names is None else names[i]
+        # print(f1_scores)
+        ax.plot(thresholds, f1_scores, label=label)
+    ax.set_xlim((0, 1))
+    ax.set_ylim((0, 1))
+    ax.set_xlabel('Threshold', fontsize=fontsize)
+    ax.set_ylabel('F1 score', fontsize=fontsize)
+    ax.set_aspect('equal', adjustable='box')
+    ticks = np.linspace(0, 1, 6)
+    tick_labels = [f'{tick:.1f}' for tick in ticks]
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(tick_labels, fontsize=fontsize)
+    ax.set_yticks(ticks)
+    ax.set_yticklabels(tick_labels, fontsize=fontsize)
+    if show_legend:
+        ax.legend()
+    plot_file = ROOT_PATH / 'plots' / 'f1_curve' / f'sn7_{"".join(config_names)}.png'
+    plot_file.parent.mkdir(exist_ok=True)
+    plt.savefig(plot_file, dpi=300, bbox_inches='tight')
     plt.show()
     plt.close(fig)
 
@@ -612,9 +680,15 @@ if __name__ == '__main__':
 
     # quantitative_testing('fusion', threshold=0.5, save_output=True)
     # qualitative_testing('sar', False)
+<<<<<<< HEAD
+=======
+
+>>>>>>> e78fb1f29009bb9d23ece208c5943f38589d7789
 
     # plot_activation_comparison(['optical', 'fusion', 'fusiondual', 'fusiondual_semisupervised'], save_plots=True)
     # quantitative_testing('sar_confidence', True)
+    # plot_precision_recall_curve(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'], None)
+    plot_f1_curve(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'])
 
     # not including africa experiment
     # plot_quantitative_testing(['optical', 'fusion', 'fusiondual', 'fusiondual_semisupervised'],

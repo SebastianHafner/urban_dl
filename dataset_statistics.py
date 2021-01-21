@@ -84,34 +84,35 @@ def test_statistics(config_name: str):
 
 
 def plot_train_validation(config_name: str):
-    mpl.rcParams.update({'font.size': 14})
+    mpl.rcParams.update({'font.size': 20})
     data = load_json(ROOT_PATH / 'plots' / 'dataset' / f'train_validation_statistics_{config_name}.json')
     print(data)
     ypos = [0.5, 1, 1.5]
-    width = 0.25
-    fig, ax = plt.subplots(figsize=(10, 3))
+    width = 0.2
+    fig, ax = plt.subplots(figsize=(10, 3.5))
     neg = ax.barh(ypos[-1], data['train_background'], width, label='Negative', color='lightgray', edgecolor='k')
     pos = ax.barh(ypos[-1], data['train_builtup'], width, label='Positive', left=data['train_background'],
-                  color='darkblue', edgecolor='k')
+                  color='red', edgecolor='k')
     na = ax.barh(ypos[1], data['train_unlabeled'], width, label='N/A', color='white', edgecolor='k')
     ax.barh(ypos[0], data['val_background'], width, label='Negative', color='lightgray', edgecolor='k')
-    ax.barh(ypos[0], data['val_builtup'], width, label='Positive', left=data['val_background'], color='darkblue',
+    ax.barh(ypos[0], data['val_builtup'], width, label='Positive', left=data['val_background'], color='red',
             edgecolor='k')
 
     ax.ticklabel_format(style='sci')
     ax.set_xlabel('Number of Pixels')
 
     ax.set_yticks(ypos)
-    ax.set_yticklabels(['Validation labeled', 'Train unlabeled', 'Train labeled'])
-    ax.legend((neg, pos, na), ('Negative', 'Positive', 'N/A'), loc='lower right', ncol=3)
+    ax.set_yticklabels(['Validation', 'Train unlabeled', 'Train labeled'])
+    ax.legend((neg, pos, na), ('False', 'True', 'N/A'), loc='lower right', ncol=3, frameon=False,
+              handletextpad=0.8, columnspacing=1, handlelength=1)
     plt.show()
 
 
 def plot_test(config_name: str):
-    mpl.rcParams.update({'font.size': 14})
+    mpl.rcParams.update({'font.size': 20})
     data = load_json(ROOT_PATH / 'plots' / 'dataset' / f'test_statistics_{config_name}.json')
     print(data)
-    width = 0.25
+    width = 0.5
     ypos = np.arange(len(data.keys()))
     fig, ax = plt.subplots(figsize=(10, 5))
 
@@ -119,19 +120,20 @@ def plot_test(config_name: str):
         site_data = data[site]
         neg = ax.barh(i, site_data['background'], width, label='Negative', color='lightgray', edgecolor='k')
         pos = ax.barh(i, site_data['builtup'], width, label='Positive', left=site_data['background'],
-                      color='darkblue', edgecolor='k')
+                      color='red', edgecolor='k')
 
     ax.ticklabel_format(style='sci')
     ax.set_xlabel('Number of Pixels')
 
     ax.set_yticks(ypos)
     ax.set_yticklabels(data.keys())
-    ax.legend((neg, pos), ('Negative', 'Positive'), loc='lower right', ncol=1)
+    ax.legend((neg, pos), ('False', 'True'), ncol=1, frameon=False,
+              handletextpad=0.8, columnspacing=1, handlelength=1)
     plt.show()
 
 if __name__ == '__main__':
     config_name = 'fusiondual_semisupervised_extended'
     # train_validation_statistics(config_name)
-    # plot_train_validation(config_name)
+    plot_train_validation(config_name)
     # test_statistics(config_name)
     plot_test(config_name)

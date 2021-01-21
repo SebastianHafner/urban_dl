@@ -140,6 +140,7 @@ def run_quantitative_assessment(config_name: str, threshold: float = None, save_
             output_data = np.stack((y_trues, y_probs))
             output_path = ROOT_PATH / 'quantitative_evaluation' / config_name
             output_path.mkdir(exist_ok=True)
+
             output_file = output_path / f'{"".join(sites)}_{config_name}.npy'
             np.save(output_file, output_data)
         else:

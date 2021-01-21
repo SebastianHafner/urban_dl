@@ -148,12 +148,19 @@ def plot_precision_recall_curve(site: str, config_names: list, names: list = Non
 
 
 if __name__ == '__main__':
-    config_name = 'fusiondual_semisupervised'
+    config_name = 'fusiondual_semisupervised_extended'
     cities = ['nanning', 'santiagodechile', 'beirut', 'lagos', 'newdehli']
     cities_igarss = ['stockholm', 'kampala', 'daressalam', 'sidney', 'newyork', 'sanfrancisco']
 
     cities_sdg = ['beijing2016', 'beijing2020', 'cairo2016', 'cairo2020', 'dubai2016', 'dubai2020', 'kigali2016',
                   'kigali2020', 'riodejanairo2016', 'riodejanairo2020', 'stockholm2016', 'stockholm2020']
+
+    # cities_sdg = ['charleston2016', 'charleston2020', 'daressalaam2016', 'daressalaam2020', 'detroit2016',
+    #               'detroit2020', 'guangzhou2016', 'guangzhou2020', 'heidelberg2016', 'heidelberg2020',
+    #               'lagos2016', 'lagos2020', 'lapaz2016', 'lapaz2020', 'mexicocity2016', 'mexicocity2020',
+    #               'mumbai2016', 'mumbai2020', 'nairobi2016', 'nairobi2020', 'newyork2016', 'newyork2020',
+    #               'nouakchott2016', 'nouakchott2020', 'shanghai2016', 'shanghai2020', 'sydney2016', 'sydney2020']
+
     for i, city in enumerate(cities_sdg):
         legend = True if city == 'stockholm' else False
         run_inference(config_name, city, Path('/storage/shafner/urban_extraction/sdg_dataset/'))

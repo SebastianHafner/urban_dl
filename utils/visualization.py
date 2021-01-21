@@ -35,11 +35,12 @@ def plot_buildings(ax, file: Path, show_title: bool = False):
     img, _, _ = read_tif(file)
     img = img > 0
     img = img if len(img.shape) == 2 else img[:, :, 0]
-    cmap = colors.ListedColormap(['white', 'red'])
+    cmap = colors.ListedColormap(['lightgray', 'red'])
     boundaries = [0, 0.5, 1]
     norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
-    # ax.imshow(img, cmap=cmap, norm=norm)
-    ax.imshow(img, cmap='Reds')
+    ax.imshow(img, cmap=cmap, norm=norm)
+    # ax.imshow(img, cmap='bwr', vmin=0, vmax=1)
+    # ax.imshow(img, cmap='Reds')
     ax.set_xticks([])
     ax.set_yticks([])
     if show_title:
@@ -81,7 +82,11 @@ def plot_stable_buildings_v2(ax, arr: np.ndarray, show_title: bool = True):
 
 
 def plot_probability(ax, probability: np.ndarray, show_title: bool = False):
-    ax.imshow(probability, cmap='Reds', vmin=0, vmax=1)
+    # ax.imshow(probability, cmap='bwr', vmin=0, vmax=1)
+    cmap = colors.ListedColormap(['lightgray', 'red'])
+    boundaries = [0, 0.5, 1]
+    norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
+    ax.imshow(probability, cmap=cmap, norm=norm)
     ax.set_xticks([])
     ax.set_yticks([])
     if show_title:
@@ -92,8 +97,8 @@ def plot_prediction(ax, prediction: np.ndarray, show_title: bool = False):
     cmap = colors.ListedColormap(['white', 'red'])
     boundaries = [0, 0.5, 1]
     norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
-    # ax.imshow(prediction, cmap=cmap, norm=norm)
-    ax.imshow(prediction, cmap='Reds')
+    ax.imshow(prediction, cmap=cmap, norm=norm)
+    # ax.imshow(prediction, cmap='Reds')
     ax.set_xticks([])
     ax.set_yticks([])
     if show_title:

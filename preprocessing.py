@@ -125,8 +125,11 @@ if __name__ == '__main__':
 
     labeled_sites = ['kampala', 'stockholm', 'daressalam', 'sidney']
     labeled_sites = []
-    unlabeled_sites = ['beijing2016', 'beijing2020', 'cairo2016', 'cairo2020', 'dubai2016', 'dubai2020', 'kigali2016',
-                       'kigali2020', 'riodejanairo2016', 'riodejanairo2020', 'stockholm2016', 'stockholm2020']
+    unlabeled_sites = ['charleston2016', 'charleston2020', 'daressalaam2016', 'daressalaam2020', 'detroit2016',
+                       'detroit2020', 'guangzhou2016', 'guangzhou2020', 'heidelberg2016', 'heidelberg2020',
+                       'lagos2016', 'lagos2020', 'lapaz2016', 'lapaz2020', 'mexicocity2016', 'mexicocity2020',
+                       'mumbai2016', 'mumbai2020', 'nairobi2016', 'nairobi2020', 'newyork2016', 'newyork2020',
+                       'nouakchott2016', 'nouakchott2020', 'shanghai2016', 'shanghai2020', 'sydney2016', 'sydney2020']
 
     all_sites = labeled_sites + unlabeled_sites
     for i, site in enumerate(all_sites):

@@ -14,8 +14,6 @@ from utils.geotiff import *
 from sklearn.metrics import precision_recall_curve
 
 
-# TODO: add coordinates to title for area of interests
-
 URBAN_EXTRACTION_PATH = Path('/storage/shafner/urban_extraction')
 ROOT_PATH = Path('/storage/shafner/urban_extraction')
 DATASET_PATH = Path('/storage/shafner/urban_extraction/urban_dataset')
@@ -138,70 +136,6 @@ def quantitative_testing(config_name: str, threshold: float = None, save_output:
         output_file = DATASET_PATH.parent / 'testing' / f'testing_{config_name}.json'
         with open(str(output_file), 'w', encoding='utf-8') as f:
             json.dump(output_data, f, ensure_ascii=False, indent=4)
-
-
-def advanced_qualitative_testing(config_name: str, checkpoint: int, save_plots: bool = False):
-    cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
-
-    # loading dataset
-    dataset = SpaceNet7Dataset(cfg)
-
-    # loading network
-    net = load_network(cfg, NETWORK_PATH / f'{config_name}_{checkpoint}.pkl')
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    net.to(device)
-    net.eval()
-    thresh = cfg.THRESHOLDS.VALIDATION
-
-    for index in tqdm(range(len(dataset))):
-        sample = dataset.__getitem__(index)
-        aoi_id = sample['aoi_id']
-        group_index = int(sample['group']) - 1
-        group = GROUPS[group_index][1]
-        country = sample['country']
-
-        fig, axs = plt.subplots(2, 3, figsize=(10, 6))
-
-        optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
-        plot_optical(axs[0, 0], optical_file, vis='false_color', show_title=True)
-
-        sar_file = DATASET_PATH / 'sn7' / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
-        plot_sar(axs[0, 1], sar_file, show_title=True)
-
-        label = cfg.DATALOADER.LABEL
-        file_all = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
-        ref_file = DATASET_PATH / 'sn7' / f'reference_{label}' / f'{label}_{aoi_id}.tif'
-        # plot_stable_buildings(axs[0, 2], file_all, file_stable, show_title=True)
-        plot_buildings(axs[0, 2], ref_file, show_title=True)
-
-        with torch.no_grad():
-            x = sample['x'].to(device)
-            logits = net(x.unsqueeze(0))
-            prob = torch.sigmoid(logits[0, 0, ])
-            prob = prob.detach().cpu().numpy()
-            pred = prob > thresh
-
-            plot_probability(axs[1, 0], prob, show_title=True)
-
-            plot_probability_histogram(axs[1, 1], prob)
-
-            # compute mean probabilities
-            mean_prob_pos = np.mean(np.ma.array(prob, mask=np.logical_not(pred)))
-            mean_prob_neg = np.mean(np.ma.array(1 - prob, mask=pred))
-            axs[1, 1].set_title(f'hist prob ({mean_prob_pos:.2f} {mean_prob_neg:.2f})')
-
-            plot_prediction(axs[1, 2], pred, show_title=True)
-
-        title = f'{config_name} {aoi_id} ({country}, {group})'
-        if save_plots:
-            path = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'histogram' / config_name
-            path.mkdir(exist_ok=True)
-            file = path / f'{title}.png'
-            plt.savefig(file, dpi=300, bbox_inches='tight')
-        else:
-            fig.suptitle(title)
-            plt.show()
-        plt.close()
 
 
 def out_of_distribution_check(n: int = 60, save_plots: bool = False):
@@ -347,7 +281,7 @@ def out_of_distribution_correlation(config_name: str, checkpoint: int, save_plot
     plt.close()
 
 
-def plot_quantitative_testing(config_names: list, names: list):
+def show_quantitative_testing(config_names: list):
 
     path = DATASET_PATH.parent / 'testing'
     data = [load_json(path / f'testing_{config_name}.json') for config_name in config_names]
@@ -357,7 +291,28 @@ def plot_quantitative_testing(config_names: list, names: list):
     group_names = [group[1] for group in groups]
 
     for i, metric in enumerate(metrics):
-        fig, ax = plt.subplots(figsize=(10, 4))
+        print(metric)
+        for j, experiment in enumerate(data):
+            print(experiment)
+            for group in group_names:
+                value = experiment['data'][str(group[0])][metric]
+                print(f'{group}: {value:.3f},', end=' ')
+            print()
+
+
+def plot_quantitative_testing(config_names: list, names: list):
+
+    mpl.rcParams.update({'font.size': 20})
+    path = DATASET_PATH.parent / 'testing'
+    data = [load_json(path / f'testing_{config_name}.json') for config_name in config_names]
+
+    metrics = ['f1_score', 'precision', 'recall']
+    metric_names = ['F1 score', 'Precision', 'Recall']
+    groups = data[0]['groups']
+    group_names = [group[1] for group in groups]
+
+    for i, metric in enumerate(metrics):
+        fig, ax = plt.subplots(figsize=(10, 5))
         width = 0.2
         for j, experiment in enumerate(data):
             ind = np.arange(len(groups))
@@ -366,8 +321,9 @@ def plot_quantitative_testing(config_names: list, names: list):
             ax.bar(x_pos, y_pos, width, label=names[j], zorder=3, edgecolor='black')
 
         ax.set_ylim((0, 1))
-        ax.set_ylabel(metric)
-        ax.legend(loc='best')
+        ax.set_ylabel(metric_names[i])
+        if i == 0:
+            ax.legend(loc='upper center', ncol=4, frameon=False, handletextpad=0.8, columnspacing=1, handlelength=1)
         x_ticks = ind + (len(config_names) - 1) * width / 2
         ax.set_xticks(x_ticks)
         ax.set_xticklabels(group_names)
@@ -386,7 +342,7 @@ def plot_activation_comparison(config_names: list, save_plots: bool = False):
     n_plots = 3 + len(config_names)
 
     for index in range(len(datasets[0])):
-        fig, axs = plt.subplots(1, n_plots, figsize=(n_plots * 5, 5))
+        fig, axs = plt.subplots(1, n_plots, figsize=(n_plots * 3, 4))
         for i, (cfg, dataset, net_file) in enumerate(zip(configs, datasets, net_files)):
 
             net = load_network(cfg, net_file)
@@ -401,10 +357,10 @@ def plot_activation_comparison(config_names: list, save_plots: bool = False):
 
             if i == 0:
                 fig.subplots_adjust(wspace=0, hspace=0)
-                mpl.rcParams['axes.linewidth'] = 4
+                mpl.rcParams['axes.linewidth'] = 1
 
                 optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
-                plot_optical(axs[0], optical_file, vis='false_color', show_title=False)
+                plot_optical(axs[0], optical_file, vis='true_color', show_title=False)
 
                 sar_file = DATASET_PATH / 'sn7' / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
                 plot_sar(axs[1], sar_file, show_title=False)
@@ -420,106 +376,79 @@ def plot_activation_comparison(config_names: list, save_plots: bool = False):
                 prob = prob.detach().cpu().numpy()
                 plot_probability(axs[3 + i], prob, show_title=False)
 
-        title = f'{aoi_id} ({country},  {group_name})'
-        plt.suptitle(title)
+        title = f'{country} ({group_name})'
+
+        # plt.suptitle(title, ha='left', va='center', x=0, y=0.5, fontsize=10, rotation=90)
+        axs[0].set_ylabel(title, fontsize=16)
         if save_plots:
             folder = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'qualitative' / '_'.join(config_names)
             folder.mkdir(exist_ok=True)
-            file = folder / f'{title}.png'
+            file = folder / f'{aoi_id}.png'
             plt.savefig(file, dpi=300, bbox_inches='tight')
         else:
             plt.show()
         plt.close()
 
 
-def qualitative_testing_comparison(config_names: list, checkpoints: list, save_plots: bool = False):
+def plot_activation_comparison_assembled(config_names: list, names: list, aoi_ids: list = None,
+                                         save_plot: bool = False):
+    mpl.rcParams['axes.linewidth'] = 1
 
-    # setup
-    configs = [config.load_cfg(CONFIG_PATH / f'{config_name}.yaml') for config_name in config_names]
-    datasets = [SpaceNet7Dataset(cfg) for cfg in configs]
-    net_files = [NETWORK_PATH / f'{name}_{checkpoint}.pkl' for name, checkpoint in zip(config_names, checkpoints)]
+    # setting up plot
+    plot_size = 3
+    plot_rows = len(aoi_ids)
+    plot_height = plot_size * plot_rows
+    plot_cols = 3 + len(config_names)  # optical, sar, reference and predictions (n configs)
+    plot_width = plot_size * plot_cols
+    fig, axs = plt.subplots(plot_rows, plot_cols, figsize=(plot_width, plot_height))
+    fig.subplots_adjust(wspace=0, hspace=0)
 
-    # optical, sar, reference and predictions (n configs)
-    n_plots = 3 + len(config_names)
+    for i, config_name in enumerate(config_names):
 
-    for index in range(len(datasets[0])):
-        fig, axs = plt.subplots(1, n_plots, figsize=(n_plots * 5, 5))
-        for i, (cfg, dataset, net_file) in enumerate(zip(configs, datasets, net_files)):
+        # loading configs, datasets, and networks
+        cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
+        dataset = SpaceNet7Dataset(cfg)
+        net = load_network(cfg, NETWORK_PATH / f'{config_name}_{cfg.INFERENCE.CHECKPOINT}.pkl')
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        net.to(device)
+        net.eval()
 
-            net = load_network(cfg, net_file)
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            net.to(device)
-            net.eval()
-
+        for j, aoi_id in enumerate(aoi_ids):
+            index = dataset.get_index(aoi_id)
             sample = dataset.__getitem__(index)
             aoi_id = sample['aoi_id']
             country = sample['country']
             group_name = sample['group_name']
 
-            if i == 0:
-                fig.subplots_adjust(wspace=0, hspace=0)
-                mpl.rcParams['axes.linewidth'] = 4
+            optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
+            plot_optical(axs[j, 0], optical_file, vis='true_color', show_title=False)
 
-                optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
-                plot_optical(axs[0], optical_file, vis='false_color', show_title=False)
+            sar_file = DATASET_PATH / 'sn7' / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
+            plot_sar(axs[j, 1], sar_file, show_title=False)
 
-                sar_file = DATASET_PATH / 'sn7' / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
-                plot_sar(axs[1], sar_file, show_title=False)
-
-                label = cfg.DATALOADER.LABEL
-                label_file = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
-                plot_buildings(axs[2], label_file, show_title=False)
+            label = cfg.DATALOADER.LABEL
+            label_file = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
+            plot_buildings(axs[j, 2], label_file, show_title=False)
 
             with torch.no_grad():
                 x = sample['x'].to(device)
                 logits = net(x.unsqueeze(0))
                 prob = torch.sigmoid(logits[0, 0,])
                 prob = prob.detach().cpu().numpy()
-                pred = prob > cfg.THRESHOLDS.VALIDATION
-                plot_prediction(axs[3 + i], pred, show_title=False)
+                plot_probability(axs[j, 3 + i], prob, show_title=False)
 
-        title = f'{aoi_id} ({country},  {group_name})'
-        plt.suptitle(title)
-        if save_plots:
+            if i == 0:  # row labels only need to be set once
+                row_label = f'{country} ({group_name})'
+                axs[j, 0].set_ylabel(row_label, fontsize=16)
+
+        if save_plot:
             folder = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'qualitative' / '_'.join(config_names)
             folder.mkdir(exist_ok=True)
-            file = folder / f'{title}.png'
+            file = folder / f'test_qualitative_results.png'
             plt.savefig(file, dpi=300, bbox_inches='tight')
         else:
             plt.show()
         plt.close()
-
-
-def plot_reference_comparison(start_index: int = 0):
-    cfg = config.load_cfg(CONFIG_PATH / f'base_v3.yaml')
-    dataset = SpaceNet7Dataset(cfg)
-
-    for index in tqdm(range(len(dataset))):
-        if index >= start_index:
-            sample = dataset.__getitem__(index)
-            aoi_id = sample['aoi_id']
-            group_index = int(sample['group']) - 1
-            group = GROUPS[group_index][1]
-            country = sample['country']
-
-            fig, axs = plt.subplots(2, 2, figsize=(6, 6))
-
-            optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
-            plot_optical(axs[0, 0], optical_file, vis='false_color', show_title=True)
-
-            sar_file = DATASET_PATH / 'sn7' / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
-            plot_sar(axs[0, 1], sar_file, show_title=True)
-
-            label = cfg.DATALOADER.LABEL
-            buildings_file = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
-            plot_buildings(axs[1, 0], buildings_file, show_title=True)
-            ref_buildings_file = DATASET_PATH / 'sn7' / f'reference_{label}' / f'{label}_{aoi_id}.tif'
-            plot_buildings(axs[1, 1], ref_buildings_file, show_title=True)
-
-            title = f'{aoi_id} ({country}, {group})'
-            fig.suptitle(title)
-            plt.show()
-            plt.close()
 
 
 def run_quantitative_inference(config_name: str):
@@ -685,39 +614,12 @@ if __name__ == '__main__':
 
     # quantitative_testing('fusion', threshold=0.5, save_output=True)
     # qualitative_testing('sar', False)
+    # plot_quantitative_testing(['sar', 'optical', 'fusion', 'fusiondual_semisupervised_extended'],
+    #                           ['SAR', 'Optical', 'Fusion', 'Fusion-DA'])
 
+    plot_activation_comparison(['sar', 'optical', 'fusion', 'fusiondual_semisupervised_extended'], save_plots=True)
     # plot_activation_comparison(['optical', 'fusion', 'fusiondual', 'fusiondual_semisupervised'], save_plots=True)
     # quantitative_testing('sar_confidence', True)
-    # plot_precision_recall_curve(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'], 'EU')
-    plot_threshold_dependency(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'])
-
-    # not including africa experiment
-    # plot_quantitative_testing(['optical', 'fusion', 'fusiondual', 'fusiondual_semisupervised'],
-    #                           ['optical', 'fusion', 'fusion-dualstream', 'fusion-dualstream (semisupervised)'])
-
-    # old vs. new
-    # sar
-    # plot_quantitative_testing(['baseline_sar', 'sar'], ['old sar', 'new sar'])
-    # optical
-    # plot_quantitative_testing(['baseline_optical', 'optical'], ['optical toa', 'optical sr'])
-    # plot_quantitative_testing(['baseline_sar', 'sar', 'baseline_optical', 'optical'],
-    #                           ['old sar', 'new sar', 'optical toa', 'optical sr'])
-
-    # adding dsm to sar data experiment
-    # plot_quantitative_testing(['baseline_sar', 'sar_dsm'], ['SAR', 'SAR with DSM'])
-
-    # different fusions
-    # plot_quantitative_testing(['baseline_fusion', 'sar_prediction_fusion', 'sar_prediction_dsm_fusion'],
-    #                           ['sar + optical', 'sar pred + optical', 'sar pred + dsm + optical'])
-
-    # plot_quantitative_testing(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
-    #                           ['SAR', 'optical', 'fusion', 'new fusion'])
-
-    # plot_quantitative_testing(['sar', 'optical', 'twostep_fusion'],
-    #                           ['SAR', 'optical', 'twostep fusion'])
-
-    # qualitative_testing_comparison(['baseline_sar', 'baseline_optical', 'baseline_fusion', 'sar_prediction_fusion'],
-    #                                [100, 100, 100, 100], save_plots=True)
-
-    # qualitative_testing_comparison(['fusion_gamma_smallnet', 'fusion_gamma_smallnet_sensordropout'], [100, 100], save_plots=False)
+    # plot_precision_recall_curve(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'], 'SA')
+    # plot_threshold_dependency(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'])
 

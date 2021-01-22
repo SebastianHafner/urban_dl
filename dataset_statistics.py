@@ -12,6 +12,10 @@ import json
 ROOT_PATH = Path('/storage/shafner/urban_extraction')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 
+COLOR_TRUE = '#b11218'
+COLOR_FALSE = '#fff5f0'
+COLOR_NA = 'lightgray'
+
 
 def train_validation_statistics(config_name: str):
     cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
@@ -90,12 +94,12 @@ def plot_train_validation(config_name: str):
     ypos = [0.5, 1, 1.5]
     width = 0.2
     fig, ax = plt.subplots(figsize=(10, 3.5))
-    neg = ax.barh(ypos[-1], data['train_background'], width, label='Negative', color='lightgray', edgecolor='k')
-    pos = ax.barh(ypos[-1], data['train_builtup'], width, label='Positive', left=data['train_background'],
-                  color='red', edgecolor='k')
-    na = ax.barh(ypos[1], data['train_unlabeled'], width, label='N/A', color='white', edgecolor='k')
-    ax.barh(ypos[0], data['val_background'], width, label='Negative', color='lightgray', edgecolor='k')
-    ax.barh(ypos[0], data['val_builtup'], width, label='Positive', left=data['val_background'], color='red',
+    neg = ax.barh(ypos[-1], data['train_background'], width, label='False', color=COLOR_FALSE, edgecolor='k')
+    pos = ax.barh(ypos[-1], data['train_builtup'], width, label='True', left=data['train_background'],
+                  color=COLOR_TRUE, edgecolor='k')
+    na = ax.barh(ypos[1], data['train_unlabeled'], width, label='N/A', color=COLOR_NA, edgecolor='k')
+    ax.barh(ypos[0], data['val_background'], width, label='False', color=COLOR_FALSE, edgecolor='k')
+    ax.barh(ypos[0], data['val_builtup'], width, label='True', left=data['val_background'], color=COLOR_TRUE,
             edgecolor='k')
 
     ax.ticklabel_format(style='sci')
@@ -118,9 +122,9 @@ def plot_test(config_name: str):
 
     for i, (site, site_data) in enumerate(data.items()):
         site_data = data[site]
-        neg = ax.barh(i, site_data['background'], width, label='Negative', color='lightgray', edgecolor='k')
-        pos = ax.barh(i, site_data['builtup'], width, label='Positive', left=site_data['background'],
-                      color='red', edgecolor='k')
+        neg = ax.barh(i, site_data['background'], width, label='False', color=COLOR_FALSE, edgecolor='k')
+        pos = ax.barh(i, site_data['builtup'], width, label='True', left=site_data['background'],
+                      color=COLOR_TRUE, edgecolor='k')
 
     ax.ticklabel_format(style='sci')
     ax.set_xlabel('Number of Pixels')

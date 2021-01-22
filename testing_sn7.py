@@ -287,12 +287,21 @@ def show_quantitative_testing(config_name: str):
     print(config_name)
     for metric in ['f1_score', 'precision', 'recall']:
         print(metric)
+        group_values = []
         for group in data['groups']:
             group_index = group[0]
             group_name = group[1]
             value = data['data'][str(group_index)][metric]
+            if group != 'total':
+                group_values.append(value)
             print(f'{group_name}: {value:.3f},', end=' ')
         print('')
+        min_ = np.min(group_values)
+        max_ = np.max(group_values)
+        mean = np.mean(group_values)
+        std = np.std(group_values)
+        print(f'summary statistics: {min_:.3f} min, {max_:.3f} max, {mean:.3f} mean, {std:.3f} std')
+
 
 
 def plot_quantitative_testing(config_names: list, names: list):
@@ -603,6 +612,11 @@ def plot_threshold_dependency(config_names: list, names: list = None, show_legen
         ax.set_yticklabels(tick_labels, fontsize=fontsize)
         if show_legend:
             ax.legend()
+
+    dataset_ax = axs[-1].twinx()
+    dataset_ax.set_ylabel('Test', fontsize=fontsize, rotation=270, va='bottom')
+    dataset_ax.set_yticks([])
+
     plot_file = ROOT_PATH / 'plots' / 'f1_curve' / f'sn7_{"".join(config_names)}.png'
     plot_file.parent.mkdir(exist_ok=True)
     plt.savefig(plot_file, dpi=300, bbox_inches='tight')
@@ -644,9 +658,9 @@ if __name__ == '__main__':
 
 
     ]
-    plot_activation_comparison_assembled(config_names, names, aoi_ids, save_plot=True)
+    # plot_activation_comparison_assembled(config_names, names, aoi_ids, save_plot=True)
     # plot_activation_comparison(config_names, save_plots=True)
     # quantitative_testing('sar_confidence', True)
     # plot_precision_recall_curve(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'], 'SA')
-    # plot_threshold_dependency(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'])
+    plot_threshold_dependency(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'])
 

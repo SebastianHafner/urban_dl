@@ -22,15 +22,13 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
         self.dataset = dataset
         if dataset == 'training':
             self.sites = list(cfg.DATASETS.TRAINING)
+            # using parameter include_unlabeled to overwrite config
+            if include_unlabeled and cfg.DATALOADER.INCLUDE_UNLABELED:
+                self.sites += cfg.DATASETS.UNLABELED
         elif dataset == 'validation':
             self.sites = list(cfg.DATASETS.VALIDATION)
         else:  # used to load only 1 city passed as dataset
             self.sites = [dataset]
-
-        # using parameter include_unlabeled to overwrite config
-        include_unlabeled = cfg.DATALOADER.INCLUDE_UNLABELED and include_unlabeled
-        if include_unlabeled:
-            self.sites += cfg.DATASETS.UNLABELED
 
         self.no_augmentations = no_augmentations
         self.transform = transforms.Compose([Numpy2Torch()]) if no_augmentations else compose_transformations(cfg)

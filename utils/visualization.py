@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-
+import matplotlib as mpl
 from utils.geotiff import *
 import numpy as np
 from pathlib import Path
@@ -122,3 +122,10 @@ def plot_probability_histogram(ax, probability: np.ndarray, show_title: bool = F
 if __name__ == '__main__':
     arr = np.array([[0, 0.01, 0.1, 0.89, 0.9, 1, 1, 1]]).flatten()
     # hist, bin_edges = np.histogram(arr, bins=10, range=(0, 1))
+    cmap = mpl.cm.get_cmap('Reds')
+    norm = mpl.colors.Normalize(vmin=0, vmax=1.2)
+
+    rgba = cmap(norm(0))
+    print(mpl.colors.to_hex(rgba))
+    rgba = cmap(norm(1))
+    print(mpl.colors.to_hex(rgba))

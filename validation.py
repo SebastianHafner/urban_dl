@@ -161,7 +161,7 @@ def run_quantitative_inference(config_name: str, run_type: str):
     net.to(device).eval()
 
     # loading dataset from config (requires inference.json)
-    dataset = UrbanExtractionDataset(cfg, dataset=run_type, no_augmentations=True)
+    dataset = UrbanExtractionDataset(cfg, dataset=run_type, no_augmentations=True, include_unlabeled=False)
 
     y_probs = y_trues = None
 
@@ -201,7 +201,8 @@ def plot_threshold_dependency(config_names: list, run_type: str, names: list = N
 
         f1_scores, precisions, recalls = [], [], []
         thresholds = np.linspace(0, 1, 101)
-        for thresh in thresholds:
+        print(config_name)
+        for thresh in tqdm(thresholds):
             y_preds = y_probs >= thresh
             tp = np.sum(np.logical_and(y_trues, y_preds))
             fp = np.sum(np.logical_and(y_preds, np.logical_not(y_trues)))
@@ -232,6 +233,10 @@ def plot_threshold_dependency(config_names: list, run_type: str, names: list = N
         ax.set_yticklabels(tick_labels, fontsize=fontsize)
         if show_legend:
             ax.legend()
+
+    dataset_ax = axs[-1].twinx()
+    dataset_ax.set_ylabel(run_type.capitalize(), fontsize=fontsize, rotation=270, va='bottom')
+    dataset_ax.set_yticks([])
     plot_file = ROOT_PATH / 'plots' / 'f1_curve' / f'{run_type}_{"".join(config_names)}.png'
     plot_file.parent.mkdir(exist_ok=True)
     plt.savefig(plot_file, dpi=300, bbox_inches='tight')
@@ -244,4 +249,4 @@ if __name__ == '__main__':
 
     config_names = ['sar', 'optical', 'fusion', 'fusiondual_semisupervised_extended']
     names = ['SAR', 'Optical', 'Fusion', 'Fusion-DA']
-    plot_threshold_dependency(config_names, 'validation', names)
+    plot_threshold_dependency(config_names, 'training', names)

@@ -281,23 +281,18 @@ def out_of_distribution_correlation(config_name: str, checkpoint: int, save_plot
     plt.close()
 
 
-def show_quantitative_testing(config_names: list):
+def show_quantitative_testing(config_name: str):
 
-    path = DATASET_PATH.parent / 'testing'
-    data = [load_json(path / f'testing_{config_name}.json') for config_name in config_names]
-
-    metrics = ['f1_score', 'precision', 'recall']
-    groups = data[0]['groups']
-    group_names = [group[1] for group in groups]
-
-    for i, metric in enumerate(metrics):
+    data = load_json(DATASET_PATH.parent / 'testing' / f'testing_{config_name}.json')
+    print(config_name)
+    for metric in ['f1_score', 'precision', 'recall']:
         print(metric)
-        for j, experiment in enumerate(data):
-            print(experiment)
-            for group in group_names:
-                value = experiment['data'][str(group[0])][metric]
-                print(f'{group}: {value:.3f},', end=' ')
-            print()
+        for group in data['groups']:
+            group_index = group[0]
+            group_name = group[1]
+            value = data['data'][str(group_index)][metric]
+            print(f'{group_name}: {value:.3f},', end=' ')
+        print('')
 
 
 def plot_quantitative_testing(config_names: list, names: list):
@@ -374,7 +369,7 @@ def plot_activation_comparison(config_names: list, save_plots: bool = False):
                 logits = net(x.unsqueeze(0))
                 prob = torch.sigmoid(logits[0, 0,])
                 prob = prob.detach().cpu().numpy()
-                plot_probability(axs[3 + i], prob, show_title=False)
+                plot_probability(axs[3 + i], prob)
 
         title = f'{country} ({group_name})'
 
@@ -393,6 +388,7 @@ def plot_activation_comparison(config_names: list, save_plots: bool = False):
 def plot_activation_comparison_assembled(config_names: list, names: list, aoi_ids: list = None,
                                          save_plot: bool = False):
     mpl.rcParams['axes.linewidth'] = 1
+    fontsize = 18
 
     # setting up plot
     plot_size = 3
@@ -401,7 +397,7 @@ def plot_activation_comparison_assembled(config_names: list, names: list, aoi_id
     plot_cols = 3 + len(config_names)  # optical, sar, reference and predictions (n configs)
     plot_width = plot_size * plot_cols
     fig, axs = plt.subplots(plot_rows, plot_cols, figsize=(plot_width, plot_height))
-    fig.subplots_adjust(wspace=0, hspace=0)
+    fig.subplots_adjust(wspace=0.05, hspace=0.05)
 
     for i, config_name in enumerate(config_names):
 
@@ -416,39 +412,52 @@ def plot_activation_comparison_assembled(config_names: list, names: list, aoi_id
         for j, aoi_id in enumerate(aoi_ids):
             index = dataset.get_index(aoi_id)
             sample = dataset.__getitem__(index)
-            aoi_id = sample['aoi_id']
             country = sample['country']
+            if country == 'United States':
+                country = 'US'
+            if country == 'United Kingdom':
+                country = 'UK'
+            if country == 'Saudi Arabia':
+                country = 'Saudi Ar.'
             group_name = sample['group_name']
 
             optical_file = DATASET_PATH / 'sn7' / 'sentinel2' / f'sentinel2_{aoi_id}.tif'
             plot_optical(axs[j, 0], optical_file, vis='true_color', show_title=False)
+            axs[-1, 0].set_xlabel('(a) Image Optical', fontsize=fontsize)
 
             sar_file = DATASET_PATH / 'sn7' / 'sentinel1' / f'sentinel1_{aoi_id}.tif'
             plot_sar(axs[j, 1], sar_file, show_title=False)
+            axs[-1, 1].set_xlabel('(b) Image SAR', fontsize=fontsize)
 
             label = cfg.DATALOADER.LABEL
             label_file = DATASET_PATH / 'sn7' / label / f'{label}_{aoi_id}.tif'
             plot_buildings(axs[j, 2], label_file, show_title=False)
+            axs[-1, 2].set_xlabel('(c) Ground Truth', fontsize=fontsize)
 
             with torch.no_grad():
                 x = sample['x'].to(device)
                 logits = net(x.unsqueeze(0))
-                prob = torch.sigmoid(logits[0, 0,])
-                prob = prob.detach().cpu().numpy()
-                plot_probability(axs[j, 3 + i], prob, show_title=False)
+                prob = torch.sigmoid(logits.squeeze())
+                prob = prob.cpu().numpy()
+                ax = axs[j, 3 + i]
+                plot_probability(ax, prob)
 
             if i == 0:  # row labels only need to be set once
                 row_label = f'{country} ({group_name})'
-                axs[j, 0].set_ylabel(row_label, fontsize=16)
+                axs[j, 0].set_ylabel(row_label, fontsize=fontsize)
 
-        if save_plot:
-            folder = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'qualitative' / '_'.join(config_names)
-            folder.mkdir(exist_ok=True)
-            file = folder / f'test_qualitative_results.png'
-            plt.savefig(file, dpi=300, bbox_inches='tight')
-        else:
-            plt.show()
-        plt.close()
+            col_letter = chr(ord('a') + 3 + i)
+            col_label = f'({col_letter}) {names[i]}'
+            axs[-1, 3 + i].set_xlabel(col_label, fontsize=fontsize)
+
+    if save_plot:
+        folder = URBAN_EXTRACTION_PATH / 'plots' / 'testing' / 'qualitative' / 'assembled'
+        folder.mkdir(exist_ok=True)
+        file = folder / f'test_qualitative_results.png'
+        plt.savefig(file, dpi=300, bbox_inches='tight')
+    else:
+        plt.show()
+    plt.close()
 
 
 def run_quantitative_inference(config_name: str):
@@ -617,8 +626,26 @@ if __name__ == '__main__':
     # plot_quantitative_testing(['sar', 'optical', 'fusion', 'fusiondual_semisupervised_extended'],
     #                           ['SAR', 'Optical', 'Fusion', 'Fusion-DA'])
 
-    plot_activation_comparison(['sar', 'optical', 'fusion', 'fusiondual_semisupervised_extended'], save_plots=True)
-    # plot_activation_comparison(['optical', 'fusion', 'fusiondual', 'fusiondual_semisupervised'], save_plots=True)
+    config_names = ['sar', 'optical', 'fusion', 'fusiondual_semisupervised_extended']
+    names = ['SAR', 'Optical', 'Fusion', 'Fusion-DA']
+    # plot_activation_comparison(config_names, save_plots=True)
+    # for config_name in config_names:
+    #     show_quantitative_testing(config_name)
+    aoi_ids = [
+        'L15-0506E-1204N_2027_3374_13',
+        'L15-0595E-1278N_2383_3079_13',
+        'L15-1172E-1306N_4688_2967_13',
+        'L15-0632E-0892N_2528_4620_13',
+        'L15-1209E-1113N_4838_3737_13',
+        'L15-1015E-1062N_4061_3941_13',
+        'L15-1204E-1202N_4816_3380_13',
+        'L15-0977E-1187N_3911_3441_13',
+        'L15-1672E-1207N_6691_3363_13',
+
+
+    ]
+    plot_activation_comparison_assembled(config_names, names, aoi_ids, save_plot=True)
+    # plot_activation_comparison(config_names, save_plots=True)
     # quantitative_testing('sar_confidence', True)
     # plot_precision_recall_curve(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'], 'SA')
     # plot_threshold_dependency(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'])

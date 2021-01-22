@@ -195,7 +195,7 @@ def plot_threshold_dependency(config_names: list, run_type: str, names: list = N
     for i, config_name in enumerate(config_names):
         data_file = ROOT_PATH / 'validation' / f'probabilities_{run_type}_{config_name}.npy'
         if not data_file.exists():
-            run_quantitative_inference(config_name)
+            run_quantitative_inference(config_name, run_type)
         data = np.load(data_file, allow_pickle=True)
         y_trues, y_probs = data[0, ], data[1, ]
 
@@ -241,16 +241,7 @@ def plot_threshold_dependency(config_names: list, run_type: str, names: list = N
 
 if __name__ == '__main__':
     config_name = 'optical'
-    checkpoint = 100
 
-    # quantitative_validation(config_name, checkpoint, save_output=True)
-    # plot_quantitative_validation(['sar'], ['sar'], run_type='validation')
-    random_selection(config_name, checkpoint, 'vancouver', 20)
-
-    # fusion_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_fusion.json'
-    # optical_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_optical.json'
-    # sar_file = DATASET_PATH.parent / 'quantitative_assessment' / f'qantitative_assessment_baseline_sar.json'
-    # plot_quantitative_results([sar_file, optical_file, fusion_file], ['SAR', 'optical', 'fusion'], 'validation')
-
-
-
+    config_names = ['sar', 'optical', 'fusion', 'fusiondual_semisupervised_extended']
+    names = ['SAR', 'Optical', 'Fusion', 'Fusion-DA']
+    plot_threshold_dependency(config_names, 'validation', names)

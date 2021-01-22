@@ -38,8 +38,8 @@ def plot_buildings(ax, file: Path, show_title: bool = False):
     cmap = colors.ListedColormap(['lightgray', 'red'])
     boundaries = [0, 0.5, 1]
     norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
-    ax.imshow(img, cmap=cmap, norm=norm)
-    # ax.imshow(img, cmap='bwr', vmin=0, vmax=1)
+    # ax.imshow(img, cmap=cmap, norm=norm)
+    ax.imshow(img, cmap='Reds', vmin=0, vmax=1.2)
     # ax.imshow(img, cmap='Reds')
     ax.set_xticks([])
     ax.set_yticks([])
@@ -81,16 +81,17 @@ def plot_stable_buildings_v2(ax, arr: np.ndarray, show_title: bool = True):
         ax.set_title('ground truth')
 
 
-def plot_probability(ax, probability: np.ndarray, show_title: bool = False):
+def plot_probability(ax, probability: np.ndarray, title: str = None):
     # ax.imshow(probability, cmap='bwr', vmin=0, vmax=1)
-    cmap = colors.ListedColormap(['lightgray', 'red'])
+    cmap = colors.ListedColormap(['blue', 'red'])
     boundaries = [0, 0.5, 1]
     norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
-    ax.imshow(probability, cmap=cmap, norm=norm)
+    # ax.imshow(probability, cmap=cmap, norm=norm)
+    ax.imshow(probability, cmap='Reds', vmin=0, vmax=1.2)
     ax.set_xticks([])
     ax.set_yticks([])
-    if show_title:
-        ax.set_title('activation')
+    if title is not None:
+        ax.set_title(title)
 
 
 def plot_prediction(ax, prediction: np.ndarray, show_title: bool = False):

@@ -423,6 +423,11 @@ class SpaceNet7Dataset(torch.utils.data.Dataset):
         img, transform, crs = read_tif(file)
         return np.nan_to_num(img).astype(np.float32), transform, crs
 
+    def get_index(self, aoi_id: str):
+        for i, sample in enumerate(self.samples):
+            if sample['aoi_id'] == aoi_id:
+                return i
+
     @staticmethod
     def _get_indices(bands, selection):
         return [bands.index(band) for band in selection]

@@ -161,9 +161,23 @@ if __name__ == '__main__':
     #               'mumbai2016', 'mumbai2020', 'nairobi2016', 'nairobi2020', 'newyork2016', 'newyork2020',
     #               'nouakchott2016', 'nouakchott2020', 'shanghai2016', 'shanghai2020', 'sydney2016', 'sydney2020']
 
-    for i, city in enumerate(cities_sdg):
+    all_cities = ['nanning', 'wuhan', 'maputo', 'caracas', 'santacruzdelasierra', 'saopaulo', 'asuncion', 'lima',
+                  'paramaribo', 'libreville', 'djibuti', 'beirut', 'baghdad', 'bischkek', 'athens', 'islamabad',
+                  'hanoi', 'bangkok', 'dhaka', 'bengaluru', 'taipeh', 'guangzhou', 'chongqing', 'berlin', 'buenosaires',
+                  'bogota', 'sanjose', 'santiagodechile', 'kapstadt', 'tripoli', 'freetown', 'london', 'madrid',
+                  'istanbul', 'beijing', 'dakar', 'dubai', 'jakarta', 'kigali', 'kinshasa', 'lagos', 'manila',
+                  'mexicocity', 'milano', 'moscow', 'mumbai', 'newdehli', 'nursultan', 'perth', 'riodejanairo',
+                  'shanghai', ''
+                              'stockholm', 'sidney', 'tokio', 'kairo', 'albuquerque', 'atlanta', 'calgary', 'charlston',
+                  'chicago', 'columbus', 'dallas', 'daressalam', 'denver', 'elpaso', 'houston', 'kampala', 'kansascity',
+                  'lasvegas', 'losangeles', 'miami', 'minneapolis', 'montreal', 'mwanza', 'newyork', 'phoenix',
+                  'quebec', 'saltlakecity', 'sandiego', 'sanfrancisco', 'santafe', 'seattle', 'stgeorge', 'toronto',
+                  'tucson', 'vancouver', 'winnipeg']
+
+    for i, city in enumerate(all_cities):
         legend = True if city == 'stockholm' else False
-        run_inference(config_name, city, Path('/storage/shafner/urban_extraction/sdg_dataset/'))
+        # run_inference(config_name, city, Path('/storage/shafner/urban_extraction/sdg_dataset/'))
+        run_inference(config_name, city)
         # run_quantitative_evaluation(config_name, city, threshold=0.5, save_output=True)
 
         # plot_precision_recall_curve(city, ['igarss_sar', 'igarss_optical', 'igarss_fusion', 'ghsl'],

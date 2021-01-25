@@ -112,6 +112,10 @@ def plot_train_validation(config_name: str):
     plt.show()
 
 
+def show_validation_test(config_name: str):
+    pass
+
+
 def plot_test(config_name: str):
     mpl.rcParams.update({'font.size': 20})
     data = load_json(ROOT_PATH / 'plots' / 'dataset' / f'test_statistics_{config_name}.json')
@@ -134,6 +138,11 @@ def plot_test(config_name: str):
     ax.legend((neg, pos), ('False', 'True'), ncol=1, frameon=False,
               handletextpad=0.8, columnspacing=1, handlelength=1)
     plt.show()
+
+
+def show_test(config_name: str):
+    pass
+
 
 if __name__ == '__main__':
     config_name = 'fusiondual_semisupervised_extended'

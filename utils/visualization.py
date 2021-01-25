@@ -39,8 +39,9 @@ def plot_buildings(ax, file: Path, show_title: bool = False):
     boundaries = [0, 0.5, 1]
     norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
     # ax.imshow(img, cmap=cmap, norm=norm)
-    ax.imshow(img, cmap='Reds', vmin=0, vmax=1.2)
+    # ax.imshow(img, cmap='Reds', vmin=0, vmax=1.2)
     # ax.imshow(img, cmap='Reds')
+    ax.imshow(img, cmap='gray', vmin=0, vmax=1)
     ax.set_xticks([])
     ax.set_yticks([])
     if show_title:
@@ -87,7 +88,8 @@ def plot_probability(ax, probability: np.ndarray, title: str = None):
     boundaries = [0, 0.5, 1]
     norm = colors.BoundaryNorm(boundaries, cmap.N, clip=True)
     # ax.imshow(probability, cmap=cmap, norm=norm)
-    ax.imshow(probability, cmap='Reds', vmin=0, vmax=1.2)
+    # ax.imshow(probability, cmap='Reds', vmin=0, vmax=1.2)
+    ax.imshow(probability, cmap='gray', vmin=0, vmax=1)
     ax.set_xticks([])
     ax.set_yticks([])
     if title is not None:

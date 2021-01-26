@@ -312,7 +312,7 @@ def plot_quantitative_testing(config_names: list, names: list):
 
     metrics = ['f1_score', 'precision', 'recall']
     metric_names = ['F1 score', 'Precision', 'Recall']
-    groups = data[0]['groups']
+    groups = data[0]['groups'][:-1]
     group_names = [group[1] for group in groups]
 
     for i, metric in enumerate(metrics):
@@ -659,8 +659,8 @@ if __name__ == '__main__':
 
     ]
     # plot_activation_comparison_assembled(config_names, names, aoi_ids, save_plot=True)
-    # plot_activation_comparison(config_names, save_plots=True)
+    plot_activation_comparison(config_names, save_plots=True)
     # quantitative_testing('sar_confidence', True)
     # plot_precision_recall_curve(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'], 'SA')
-    plot_threshold_dependency(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'])
+    # plot_threshold_dependency(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'])
 

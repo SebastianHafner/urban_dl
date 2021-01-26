@@ -12,10 +12,19 @@ import json
 ROOT_PATH = Path('/storage/shafner/urban_extraction')
 CONFIG_PATH = Path('/home/shafner/urban_dl/configs')
 
-COLOR_TRUE = '#b11218'
-COLOR_FALSE = '#fff5f0'
+COLOR_TRUE = '#ffffff'  # '#b11218'
+COLOR_FALSE = '#000000'  # '#fff5f0'
 COLOR_NA = 'lightgray'
 
+
+def pixelareakm2(n, resolution=10):
+    # area in m2 of 1 pixel
+    area_m2_pixel = resolution**2
+    # area in m2 of all pixels
+    area_m2 = area_m2_pixel * n
+    # area in km2
+    area_km2 = area_m2 / 1e6
+    return area_km2
 
 def train_validation_statistics(config_name: str):
     cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
@@ -90,14 +99,14 @@ def test_statistics(config_name: str):
 def plot_train_validation(config_name: str):
     mpl.rcParams.update({'font.size': 20})
     data = load_json(ROOT_PATH / 'plots' / 'dataset' / f'train_validation_statistics_{config_name}.json')
-    print(data)
     ypos = [0.5, 1, 1.5]
     width = 0.2
     fig, ax = plt.subplots(figsize=(10, 3.5))
     neg = ax.barh(ypos[-1], data['train_background'], width, label='False', color=COLOR_FALSE, edgecolor='k')
     pos = ax.barh(ypos[-1], data['train_builtup'], width, label='True', left=data['train_background'],
                   color=COLOR_TRUE, edgecolor='k')
-    na = ax.barh(ypos[1], data['train_unlabeled'], width, label='N/A', color=COLOR_NA, edgecolor='k')
+    na = ax.barh(ypos[1], data['train_unlabeled'], width, label='N/A', color=COLOR_TRUE,
+                 hatch='/', edgecolor='k')
     ax.barh(ypos[0], data['val_background'], width, label='False', color=COLOR_FALSE, edgecolor='k')
     ax.barh(ypos[0], data['val_builtup'], width, label='True', left=data['val_background'], color=COLOR_TRUE,
             edgecolor='k')
@@ -112,14 +121,34 @@ def plot_train_validation(config_name: str):
     plt.show()
 
 
-def show_validation_test(config_name: str):
-    pass
+def show_validation_training(config_name: str):
+    data = load_json(ROOT_PATH / 'plots' / 'dataset' / f'train_validation_statistics_{config_name}.json')
+
+    # train labeled
+    train_true = data['train_builtup']
+    train_false = data['train_background']
+    train_total = train_true + train_false
+    area_total = pixelareakm2(train_total)
+    percentage = train_true / (train_true + train_false) * 100
+    print(f'Train (labeled): {percentage:.0f} % ({train_total:.2E}, {area_total:.0f})')
+
+    # train unlabeled
+    train_unlabeled = data['train_unlabeled']
+    area_total = pixelareakm2(train_unlabeled)
+    print(f'Train (unlabeled): {train_unlabeled:.2E}, {area_total:.0f}')
+
+    # validation
+    val_true = data['val_builtup']
+    val_false = data['val_background']
+    val_total = val_true + val_false
+    area_total = pixelareakm2(val_total)
+    percentage = val_true / (val_true + val_false) * 100
+    print(f'Validation: {percentage:.0f} % ({val_total:.2E}, {area_total:.0f})')
 
 
 def plot_test(config_name: str):
     mpl.rcParams.update({'font.size': 20})
     data = load_json(ROOT_PATH / 'plots' / 'dataset' / f'test_statistics_{config_name}.json')
-    print(data)
     width = 0.5
     ypos = np.arange(len(data.keys()))
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -141,12 +170,25 @@ def plot_test(config_name: str):
 
 
 def show_test(config_name: str):
-    pass
+    data = load_json(ROOT_PATH / 'plots' / 'dataset' / f'test_statistics_{config_name}.json')
+    total = 0
+    for group_name in data.keys():
+        group_data = data[group_name]
+        true = group_data['builtup']
+        false = group_data['background']
+        group_total = true + false
+        total += group_total
+        percentage = true / (true + false) * 100
+        print(f'{group_name}: {percentage:.0f} % BUA ({group_total:.0E} pixels)')
+    total_area = pixelareakm2(total)
+    print(f'Test {total:.2E} {total_area:.0f}')
 
 
 if __name__ == '__main__':
     config_name = 'fusiondual_semisupervised_extended'
     # train_validation_statistics(config_name)
     plot_train_validation(config_name)
+    # show_validation_training(config_name)
     # test_statistics(config_name)
-    plot_test(config_name)
+    # plot_test(config_name)
+    # show_test(config_name)

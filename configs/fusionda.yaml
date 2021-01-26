@@ -1,5 +1,5 @@
 SEED: 7
-DEBUG: True
+DEBUG: False
 LOG_FREQ: 1000
 OUTPUT_BASE_DIR: '/storage/shafner/urban_extraction/networks'
 SAVE_CHECKPOINTS: [5, 10, 15, 20]
@@ -10,7 +10,7 @@ INFERENCE:
     VALIDATION: 0.0
 
 MODEL:
-  TYPE: 'unet'
+  TYPE: 'dualstreamunet'
   OUT_CHANNELS: 1
   IN_CHANNELS: 12
   LOSS_TYPE: 'JaccardLikeLoss'

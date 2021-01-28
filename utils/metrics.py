@@ -1,5 +1,5 @@
 import torch
-from sklearn.metrics import roc_auc_score, roc_curve
+import numpy as np
 import sys
 
 
@@ -132,6 +132,39 @@ def f1_score(gts:torch.Tensor, preds:torch.Tensor, multi_threashold_mode=False, 
         f1 = 2. * recall_val * precision_val / denom
 
     return f1
+
+
+def f1_score_from_prob(y_prob: np.ndarray, y_true: np.ndarray, threshold: float = 0.5):
+    p = precsision_from_prob(y_prob, y_true, threshold=threshold)
+    r = recalll_from_prob(y_prob, y_true, threshold=threshold)
+    return 2 * (p * r) / (p + r)
+
+
+def true_positives_from_prob(y_prob: np.ndarray, y_true: np.ndarray, threshold: float = 0.5):
+    y_pred = y_prob > threshold
+    return np.sum(np.logical_and(y_pred, y_true))
+
+
+def false_positives_from_prob(y_prob: np.ndarray, y_true: np.ndarray, threshold: float = 0.5):
+    y_pred = y_prob > threshold
+    return np.sum(np.logical_and(y_pred, np.logical_not(y_true)))
+
+
+def false_negatives_from_prob(y_prob: np.ndarray, y_true: np.ndarray, threshold: float = 0.5):
+    y_pred = y_prob > threshold
+    return np.sum(np.logical_and(np.logical_not(y_pred), y_true))
+
+
+def precsision_from_prob(y_prob: np.ndarray, y_true: np.ndarray, threshold: float = 0.5):
+    tp = true_positives_from_prob(y_prob, y_true, threshold)
+    fp = false_positives_from_prob(y_prob, y_true, threshold)
+    return tp / (tp + fp)
+
+
+def recalll_from_prob(y_prob: np.ndarray, y_true: np.ndarray, threshold: float = 0.5):
+    tp = true_positives_from_prob(y_prob, y_true, threshold)
+    fn = false_negatives_from_prob(y_prob, y_true, threshold)
+    return tp / (tp + fn)
 
 
 if __name__ == '__main__':

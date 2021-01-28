@@ -148,7 +148,7 @@ def plot_precision_recall_curve(site: str, config_names: list, names: list = Non
 
 
 if __name__ == '__main__':
-    config_name = 'fusion'
+    config_name = 'fusionda_softdicesquaredsumloss'
     cities = ['nanning', 'santiagodechile', 'beirut', 'lagos', 'newdehli']
     cities_igarss = ['stockholm', 'kampala', 'daressalam', 'sidney', 'newyork', 'sanfrancisco']
 
@@ -168,16 +168,18 @@ if __name__ == '__main__':
               'lima', 'paramaribo', 'libreville', 'djibuti', 'beirut', 'baghdad', 'athens', 'islamabad', 'hanoi',
               'bangkok', 'dhaka', 'bengaluru', 'taipeh', 'berlin', 'nanning', 'wuhan', 'daressalam', 'milano',
                   'calgary', 'newyork', 'sanfrancisco', 'vancouver']
+    cities_paper = ['islamabad', 'manila', 'newdehli', 'wuhan', 'madrid', 'mexicocity', 'sanfrancisco', 'lagos',
+                    'kairo']
 
-    for i, city in enumerate(all_cities):
+    for i, city in enumerate(cities_paper):
         legend = True if city == 'stockholm' else False
         # run_inference(config_name, city, Path('/storage/shafner/urban_extraction/sdg_dataset/'))
-        if i > 14:
-            run_inference(config_name, city)
+        # if i > 14:
+        run_inference(config_name, city)
         # run_quantitative_evaluation(config_name, city, threshold=0.5, save_output=True)
 
         # plot_precision_recall_curve(city, ['igarss_sar', 'igarss_optical', 'igarss_fusion', 'ghsl'],
-        #                             names=['SAR', 'Optical', 'Fusion', 'GHSL'], show_legend=legend,
+        #                             names=['SAR', 'Optical', 'Fusion', 'GHSL-S2'], show_legend=legend,
         #                             save_plot=True)
 
         # plot_precision_recall_curve(city, ['igarss_fusion', 'igarss_sensordropout', 'igarss_channeldropout'],

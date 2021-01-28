@@ -14,6 +14,8 @@ def get_criterion(loss_type, negative_weight: float = 1, positive_weight: float 
         criterion = nn.CrossEntropyLoss(weight=balance_weight)
     elif loss_type == 'SoftDiceLoss':
         criterion = soft_dice_loss
+    elif loss_type == 'SoftDiceSquaredSumLoss':
+        criterion = soft_dice_squared_sum_loss
     elif loss_type == 'SoftDiceBalancedLoss':
         criterion = soft_dice_loss_balanced
     elif loss_type == 'JaccardLikeLoss':
@@ -26,22 +28,34 @@ def get_criterion(loss_type, negative_weight: float = 1, positive_weight: float 
         criterion = lambda pred, gts: F.binary_cross_entropy_with_logits(pred, gts) + jaccard_like_balanced_loss(pred, gts)
     elif loss_type == 'MeanSquareErrorLoss':
         criterion = nn.MSELoss()
+    elif loss_type == 'IoULoss':
+        criterion = iou_loss
     else:
         raise Exception(f'unknown loss {loss_type}')
 
     return criterion
 
 
-def soft_dice_loss(input:torch.Tensor, target:torch.Tensor):
-    input_sigmoid = torch.sigmoid(input)
+def soft_dice_loss(y_logit: torch.Tensor, y_true: torch.Tensor):
+    y_prob = torch.sigmoid(y_logit)
     eps = 1e-6
 
-    iflat = input_sigmoid.flatten()
-    tflat = target.flatten()
-    intersection = (iflat * tflat).sum()
+    y_prob = y_prob.flatten()
+    y_true = y_true.flatten()
+    intersection = (y_prob * y_true).sum()
 
-    return 1 - ((2. * intersection) /
-                (iflat.sum() + tflat.sum() + eps))
+    return 1 - ((2. * intersection + eps) / (y_prob.sum() + y_true.sum() + eps))
+
+
+def soft_dice_squared_sum_loss(y_logit: torch.Tensor, y_true: torch.Tensor):
+    y_prob = torch.sigmoid(y_logit)
+    eps = 1e-6
+
+    y_prob = y_prob.flatten()
+    y_true = y_true.flatten()
+    intersection = (y_prob * y_true).sum()
+
+    return 1 - ((2. * intersection + eps) / (y_prob.sum() + y_true.sum() + eps))
 
 
 def soft_dice_loss_multi_class(input:torch.Tensor, y:torch.Tensor):
@@ -112,6 +126,18 @@ def jaccard_like_loss(input:torch.Tensor, target:torch.Tensor):
     denom = (iflat**2 + tflat**2).sum() - (iflat * tflat).sum() + eps
 
     return 1 - ((2. * intersection) / denom)
+
+
+def iou_loss(y_logit: torch.Tensor, y_true: torch.Tensor):
+    y_pred = torch.sigmoid(y_logit)
+    eps = 1e-6
+
+    y_pred = y_pred.flatten()
+    y_true = y_true.flatten()
+    intersection = (y_pred * y_true).sum()
+    union = (y_pred + y_true).sum() - intersection + eps
+
+    return 1 - (intersection / union)
 
 
 def jaccard_like_balanced_loss(input:torch.Tensor, target:torch.Tensor):

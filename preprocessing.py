@@ -130,7 +130,7 @@ if __name__ == '__main__':
                        'lagos2016', 'lagos2020', 'lapaz2016', 'lapaz2020', 'mexicocity2016', 'mexicocity2020',
                        'mumbai2016', 'mumbai2020', 'nairobi2016', 'nairobi2020', 'newyork2016', 'newyork2020',
                        'nouakchott2016', 'nouakchott2020', 'shanghai2016', 'shanghai2020', 'sydney2016', 'sydney2020']
-    unlabeled_sites = ['zhengzhou', 'hefei', 'xian', 'seoul', 'ibadan', 'benincity', 'abidjan', 'accra']
+    unlabeled_sites = ['amsterdam', 'riyadh', 'amman', 'damascus', 'nouakchott', 'prague']
     all_sites = labeled_sites + unlabeled_sites
     for i, site in enumerate(all_sites):
         if i >= 0:

@@ -13,7 +13,7 @@ MODEL:
   TYPE: 'dualstreamunet'
   OUT_CHANNELS: 1
   IN_CHANNELS: 12
-  LOSS_TYPE: 'IoULoss'
+  LOSS_TYPE: 'JaccardLikeLoss'
   POSITIVE_WEIGHT: 250
   NEGATIVE_WEIGHT: 1
   TOPOLOGY: [64, 128,]
@@ -47,7 +47,8 @@ DATASETS:
               'tokio', 'stockholm', 'sidney', 'maputo', 'caracas', 'santacruzdelasierra', 'saopaulo', 'asuncion',
               'lima', 'paramaribo', 'libreville', 'djibuti', 'beirut', 'baghdad', 'athens', 'islamabad', 'hanoi',
               'bangkok', 'dhaka', 'bengaluru', 'taipeh', 'berlin', 'nanning', 'wuhan', 'daressalam', 'milano',
-              'zhengzhou', 'hefei', 'xian', 'seoul', 'ibadan', 'benincity', 'abidjan', 'accra']
+              'zhengzhou', 'hefei', 'xian', 'seoul', 'ibadan', 'benincity', 'abidjan', 'accra', 'amsterdam', 'riyadh',
+              'amman', 'damascus', 'nouakchott', 'prague']
   TESTING: '/storage/shafner/urban_extraction/urban_dataset/sn7/'
 
 TRAINER:
@@ -70,4 +71,4 @@ CONSISTENCY_TRAINER:
   LOSS_FACTOR: 0.1
   WEIGHT_DECAY: 0.998
   APPLY_THRESHOLD: False
-  CONSISTENCY_LOSS_TYPE: 'IoULoss'
+  CONSISTENCY_LOSS_TYPE: 'JaccardLikeLoss'

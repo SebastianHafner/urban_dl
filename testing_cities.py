@@ -148,7 +148,7 @@ def plot_precision_recall_curve(site: str, config_names: list, names: list = Non
 
 
 if __name__ == '__main__':
-    config_name = 'fusionda_softdicesquaredsumloss'
+    config_name = 'fusionda'
     cities = ['nanning', 'santiagodechile', 'beirut', 'lagos', 'newdehli']
     cities_igarss = ['stockholm', 'kampala', 'daressalam', 'sidney', 'newyork', 'sanfrancisco']
 
@@ -169,7 +169,7 @@ if __name__ == '__main__':
               'bangkok', 'dhaka', 'bengaluru', 'taipeh', 'berlin', 'nanning', 'wuhan', 'daressalam', 'milano',
                   'calgary', 'newyork', 'sanfrancisco', 'vancouver']
     cities_paper = ['islamabad', 'manila', 'newdehli', 'wuhan', 'madrid', 'mexicocity', 'sanfrancisco', 'lagos',
-                    'kairo']
+                    'kairo', 'shanghai', 'riyadh', 'accra']
 
     for i, city in enumerate(cities_paper):
         legend = True if city == 'stockholm' else False

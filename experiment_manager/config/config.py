@@ -144,6 +144,7 @@ def setup(args):
     cfg.merge_from_file(f'configs/{args.config_file}.yaml')
     cfg.merge_from_list(args.opts)
     cfg.NAME = args.config_file
+    cfg.RESUME_CHECKPOINT = args.resume_checkpoint
 
     # TODO: might not be necessary -> remove
     if args.data_dir:

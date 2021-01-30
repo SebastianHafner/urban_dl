@@ -1,4 +1,5 @@
 import torch
+from torch import optim
 
 import segmentation_models_pytorch as smp
 from networks.unet import UNet, DualStreamUNet
@@ -8,7 +9,17 @@ from networks.emanet import EMA
 from networks.confidencenet import ConfidenceNet
 from networks.resnet import ResNet
 
+
 from pathlib import Path
+
+
+def get_network(cfg):
+    if not cfg.RESUME_CHECKPOINT:
+        net = create_network(cfg)
+        optimizer = optim.AdamW(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.01)
+    else:
+        net, optimizer = load_checkpoint(cfg.RESUME_CHECKPOINT, cfg)
+    return net, optimizer
 
 
 def create_network(cfg):
@@ -58,3 +69,29 @@ def load_network(cfg, pkl_file: Path):
 def create_ema_network(net, cfg):
     ema_net = EMA(net, decay=cfg.CONSISTENCY_TRAINER.WEIGHT_DECAY)
     return ema_net
+
+
+def save_checkpoint(network, optimizer, epoch, step, cfg):
+    save_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}_checkpoint{epoch}.pt'
+    checkpoint = {
+        'step': step,
+        'network': network.state_dict(),
+        'optimizer': optimizer.state_dict()
+    }
+    torch.save(checkpoint, save_file)
+
+
+def load_checkpoint(epoch, cfg, device):
+
+    net = create_network(cfg)
+    net.to(device)
+
+    save_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}_checkpoint{epoch}.pt'
+    checkpoint = torch.load(save_file, map_location=device)
+
+    optimizer = optim.AdamW(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.01)
+
+    net.load_state_dict(checkpoint['network'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+
+    return net, optimizer, checkpoint['step']

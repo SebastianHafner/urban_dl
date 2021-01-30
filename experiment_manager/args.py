@@ -9,6 +9,7 @@ def default_argument_parser():
     """
     parser = argparse.ArgumentParser(description="Experiment Args")
     parser.add_argument('-c',"--config-file", dest='config_file', default="", required=True, metavar="FILE", help="path to config file")
+    parser.add_argument('-r', "--resume-checkpoint", dest='resume_checkpoint', type=int, default=0, help='checkpoint to resume training from')
     parser.add_argument('-d', '--data-dir', dest='data_dir', type=str,
                       default='', help='dataset directory')
     parser.add_argument('-o', '--output-dir', dest='log_dir', type=str,

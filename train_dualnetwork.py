@@ -5,13 +5,13 @@ import timeit
 
 import torch
 import torch.nn as nn
-from torch import optim
 from torch.utils import data as torch_data
+from torch import optim
 
 from tabulate import tabulate
 import wandb
 
-from networks.network_loader import create_network
+from networks.network_loader import create_network, save_checkpoint, load_checkpoint
 
 from utils.datasets import UrbanExtractionDataset
 from utils.augmentations import *
@@ -22,7 +22,7 @@ from experiment_manager.args import default_argument_parser
 from experiment_manager.config import config
 
 
-def train_net(net, cfg):
+def run_training(cfg):
     run_config = {
         'CONFIG_NAME': cfg.NAME,
         'device': device,
@@ -35,18 +35,19 @@ def train_net(net, cfg):
              }
     print(tabulate(table, headers='keys', tablefmt="fancy_grid", ))
 
-    optimizer = optim.AdamW(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.01)
+    if not cfg.RESUME_CHECKPOINT:
+        net = create_network(cfg)
+        net.to(device)
+        optimizer = optim.AdamW(net.parameters(), lr=cfg.TRAINER.LR, weight_decay=0.01)
+        global_step = 0
+    else:
+        net, optimizer, global_step = load_checkpoint(cfg.RESUME_CHECKPOINT, cfg, device)
 
     sar_criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
     optical_criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
     fusion_criterion = get_criterion(cfg.MODEL.LOSS_TYPE)
     consistency_criterion = get_criterion(cfg.CONSISTENCY_TRAINER.CONSISTENCY_LOSS_TYPE)
 
-    if torch.cuda.device_count() > 1:
-        print(torch.cuda.device_count(), " GPUs!")
-        net = nn.DataParallel(net)
-
-    net.to(device)
 
     # reset the generators
     dataset = UrbanExtractionDataset(cfg=cfg, dataset='training')
@@ -63,16 +64,14 @@ def train_net(net, cfg):
 
     # unpacking cfg
     epochs = cfg.TRAINER.EPOCHS
+    start_epoch = epoch_float = cfg.RESUME_CHECKPOINT
     save_checkpoints = cfg.SAVE_CHECKPOINTS
     steps_per_epoch = len(dataloader)
-
-    # tracking variables
-    global_step = epoch_float = 0
 
     # for logging
     thresholds = torch.linspace(0, 1, 101)
 
-    for epoch in range(1, epochs + 1):
+    for epoch in range(start_epoch + 1, epochs + 1):
         print(f'Starting epoch {epoch}/{epochs}.')
 
         start = timeit.default_timer()
@@ -172,8 +171,8 @@ def train_net(net, cfg):
             assert (epoch == epoch_float)
         if epoch in save_checkpoints and not cfg.DEBUG:
             print(f'saving network', flush=True)
-            net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{cfg.NAME}_{epoch}.pkl'
-            torch.save(net.state_dict(), net_file)
+            save_checkpoint(net, optimizer, epoch, global_step, cfg)
+
             # logs to load network
             train_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'training', epoch_float, global_step)
             validation_argmaxF1 = model_evaluation(net, cfg, device, thresholds, 'validation', epoch_float, global_step,
@@ -198,10 +197,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    net = create_network(cfg)
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # cudnn.benchmark = True # faster convolutions, but more memory
 
     print('=== Runnning on device: p', device)
 
@@ -213,10 +209,8 @@ if __name__ == '__main__':
         )
 
     try:
-        train_net(net, cfg)
+        run_training(cfg)
     except KeyboardInterrupt:
-        torch.save(net.state_dict(), 'INTERRUPTED.pth')
-        print('Saved interrupt')
         try:
             sys.exit(0)
         except SystemExit:

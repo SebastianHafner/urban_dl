@@ -49,6 +49,8 @@ def run_training(cfg):
     consistency_criterion = get_criterion(cfg.CONSISTENCY_TRAINER.CONSISTENCY_LOSS_TYPE)
 
 
+
+
     # reset the generators
     dataset = UrbanExtractionDataset(cfg=cfg, dataset='training')
     print(dataset)

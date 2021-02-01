@@ -136,6 +136,7 @@ def config(name='default') -> HPConfig:
 def load_cfg(yaml_file: Path):
     cfg = new_config()
     cfg.merge_from_file(str(yaml_file))
+    cfg.NAME = str(yaml_file.stem)
     return cfg
 
 

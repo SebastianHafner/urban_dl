@@ -7,7 +7,7 @@ from tqdm import tqdm
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-from networks.network_loader import load_network
+from networks.network_loader import load_checkpoint
 from utils.datasets import SpaceNet7Dataset
 from experiment_manager.config import config
 from utils.metrics import *
@@ -34,10 +34,9 @@ def run_quantitative_inference(config_name: str):
 
     # loading config and network
     cfg = config.load_cfg(Path.cwd() / 'configs' / f'{config_name}.yaml')
-    net_file = Path(cfg.OUTPUT_BASE_DIR) / f'{config_name}_{cfg.INFERENCE.CHECKPOINT}.pkl'
-    net = load_network(cfg, net_file)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    net.to(device).eval()
+    net, _, _ = load_checkpoint(cfg.INFERENCE.CHECKPOINT, cfg, device)
+    net.eval()
 
     # loading dataset from config (requires inference.json)
     dataset = SpaceNet7Dataset(cfg)
@@ -85,7 +84,6 @@ def get_quantitative_data(config_name: str, allow_run: bool = True):
             run_quantitative_inference(config_name)
         else:
             raise Exception('No data and not allowed to run quantitative inference!')
-    run_quantitative_inference(config_name)
     data = np.load(data_file, allow_pickle=True)
     data = dict(data[()])
     return data
@@ -93,7 +91,6 @@ def get_quantitative_data(config_name: str, allow_run: bool = True):
 
 
 def plot_boxplots(config_names: list, names: list = None):
-
 
     metrics = ['f1_score', 'precision', 'recall']
     metric_names = ['F1 score', 'Precision', 'Recall']
@@ -108,7 +105,12 @@ def plot_boxplots(config_names: list, names: list = None):
         def custom_boxplot(x_pos: float, values: list, color: str):
             min_ = np.min(values)
             max_ = np.max(values)
+            std = np.std(values)
+            mean = np.mean(values)
             median = np.median(values)
+            min_ = mean - std
+            max_ = mean + std
+
 
             line_kwargs = {'c': color, 'lw': line_width}
             point_kwargs = {'c': color, 's': point_size}
@@ -122,7 +124,7 @@ def plot_boxplots(config_names: list, names: list = None):
             ax.plot(x_positions, [max_, max_], **line_kwargs)
 
             # median
-            ax.scatter([x_pos], [median], **point_kwargs)
+            ax.scatter([x_pos], [mean], **point_kwargs)
 
             pass
 
@@ -159,83 +161,23 @@ def plot_boxplots(config_names: list, names: list = None):
         plt.close(fig)
 
 
-def quantitative_testing(config_name: str, threshold: float = None, save_output: bool = False):
-
-    # loading config and dataset
-    cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
-    dataset = SpaceNet7Dataset(cfg)
-    net = load_network(cfg, NETWORK_PATH / f'{config_name}_{cfg.INFERENCE.CHECKPOINT}.pkl')
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    net.to(device)
-    net.eval()
-    thresh = threshold if threshold else cfg.INFERENCE.THRESHOLDS.VALIDATION
-
-    y_true_dict = {'total': np.array([])}
-    y_pred_dict = {'total': np.array([])}
-    # container for output file
-    output_data = {
-        'metadata': {'cfg_name': config_name, 'thresh': thresh},
-        'groups': GROUPS,
-        'data': {}
-    }
-
-    for index in tqdm(range(len(dataset))):
-        sample = dataset.__getitem__(index)
-        group = sample['group']
-
-        with torch.no_grad():
-            x = sample['x'].to(device)
-            y_true = sample['y'].to(device)
-            logits = net(x.unsqueeze(0))
-            y_pred = torch.sigmoid(logits) > thresh
-
-            y_true = y_true.detach().cpu().flatten().numpy()
-            y_pred = y_pred.detach().cpu().flatten().numpy()
-
-            if group not in y_true_dict.keys():
-                y_true_dict[group] = y_true
-                y_pred_dict[group] = y_pred
-            else:
-                y_true_dict[group] = np.concatenate((y_true_dict[group], y_true))
-                y_pred_dict[group] = np.concatenate((y_pred_dict[group], y_pred))
-
-            y_true_dict['total'] = np.concatenate((y_true_dict['total'], y_true))
-            y_pred_dict['total'] = np.concatenate((y_pred_dict['total'], y_pred))
-
-    for group in GROUPS:
-        group_index, group_name, _ = group
-        group_y_true = torch.Tensor(np.array(y_true_dict[group_index]))
-        group_y_pred = torch.Tensor(np.array(y_pred_dict[group_index]))
-        prec = precision(group_y_true, group_y_pred, dim=0).item()
-        rec = recall(group_y_true, group_y_pred, dim=0).item()
-        f1 = f1_score(group_y_true, group_y_pred, dim=0).item()
-
-        output_data['data'][group_index] = {'f1_score': f1, 'precision': prec, 'recall': rec}
-        print(f'{group_name} ({group_index}) - Precision: {prec:.3f} - Recall: {rec:.3f} - F1 score: {f1:.3f}')
-
-    if save_output:
-        output_file = DATASET_PATH.parent / 'testing' / f'testing_{config_name}.json'
-        with open(str(output_file), 'w', encoding='utf-8') as f:
-            json.dump(output_data, f, ensure_ascii=False, indent=4)
 
 
 def plot_activation_comparison(config_names: list, save_plots: bool = False):
 
     # setup
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     configs = [config.load_cfg(CONFIG_PATH / f'{config_name}.yaml') for config_name in config_names]
     datasets = [SpaceNet7Dataset(cfg) for cfg in configs]
-    net_files = [NETWORK_PATH / f'{name}_{cfg.INFERENCE.CHECKPOINT}.pkl' for cfg, name in zip(configs, config_names)]
 
     # optical, sar, reference and predictions (n configs)
     n_plots = 3 + len(config_names)
 
     for index in range(len(datasets[0])):
         fig, axs = plt.subplots(1, n_plots, figsize=(n_plots * 3, 4))
-        for i, (cfg, dataset, net_file) in enumerate(zip(configs, datasets, net_files)):
+        for i, (cfg, dataset) in enumerate(zip(configs, datasets)):
 
-            net = load_network(cfg, net_file)
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            net.to(device)
+            net, _, _ = load_checkpoint(cfg.INFERENCE.CHECKPOINT, cfg, device)
             net.eval()
 
             sample = dataset.__getitem__(index)
@@ -278,8 +220,12 @@ def plot_activation_comparison(config_names: list, save_plots: bool = False):
         plt.close()
 
 
+
 def plot_activation_comparison_assembled(config_names: list, names: list, aoi_ids: list = None,
                                          save_plot: bool = False):
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     mpl.rcParams['axes.linewidth'] = 1
     fontsize = 18
 
@@ -297,9 +243,7 @@ def plot_activation_comparison_assembled(config_names: list, names: list, aoi_id
         # loading configs, datasets, and networks
         cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
         dataset = SpaceNet7Dataset(cfg)
-        net = load_network(cfg, NETWORK_PATH / f'{config_name}_{cfg.INFERENCE.CHECKPOINT}.pkl')
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        net.to(device)
+        net, _, _ = load_checkpoint(cfg.INFERENCE.CHECKPOINT, cfg, device)
         net.eval()
 
         for j, aoi_id in enumerate(aoi_ids):
@@ -353,28 +297,42 @@ def plot_activation_comparison_assembled(config_names: list, names: list, aoi_id
     plt.close()
 
 
-
 def show_quantitative_testing(config_name: str):
+    print(f'{"-" * 10} {config_name} {"-" * 10}')
 
-    data = load_json(DATASET_PATH.parent / 'testing' / f'testing_{config_name}.json')
-    print(config_name)
+    data = get_quantitative_data(config_name)
     for metric in ['f1_score', 'precision', 'recall']:
         print(metric)
-        group_values = []
-        for group in data['groups']:
-            group_index = group[0]
-            group_name = group[1]
-            value = data['data'][str(group_index)][metric]
-            if group != 'total':
-                group_values.append(value)
-            print(f'{group_name}: {value:.3f},', end=' ')
+        region_values = []
+        for region_name, region in data.items():
+
+            y_true = np.concatenate([site['y_true'] for site in region], axis=0)
+            y_prob = np.concatenate([site['y_prob'] for site in region], axis=0)
+
+            if metric == 'f1_score':
+                value = f1_score_from_prob(y_prob, y_true, 0.5)
+            elif metric == 'precision':
+                value = precsision_from_prob(y_prob, y_true, 0.5)
+            else:
+                value = recalll_from_prob(y_prob, y_true, 0.5)
+
+            print(f'{region_name}: {value:.3f},', end=' ')
+            region_values.append(value)
+
         print('')
-        min_ = np.min(group_values)
-        max_ = np.max(group_values)
-        mean = np.mean(group_values)
-        std = np.std(group_values)
+        min_ = np.min(region_values)
+        max_ = np.max(region_values)
+        mean = np.mean(region_values)
+        std = np.std(region_values)
+
         print(f'summary statistics: {min_:.3f} min, {max_:.3f} max, {mean:.3f} mean, {std:.3f} std')
 
+    y_true = np.concatenate([site['y_true'] for region in data.values() for site in region], axis=0)
+    y_prob = np.concatenate([site['y_prob'] for region in data.values() for site in region], axis=0)
+    f1 = f1_score_from_prob(y_prob, y_true, 0.5)
+    prec = precsision_from_prob(y_prob, y_true, 0.5)
+    rec = recalll_from_prob(y_prob, y_true, 0.5)
+    print(f'total: {f1:.3f} f1 score, {prec:.3f} precision, {rec:.3f} recall')
 
 
 def plot_barplots(config_names: list, names: list):
@@ -408,36 +366,23 @@ def plot_barplots(config_names: list, names: list):
         plt.show()
 
 
+def plot_precision_recall_curve(config_names: list, names: list = None, show_legend: bool = False):
 
-def plot_precision_recall_curve(config_names: list, group_name: str = None, names: list = None,
-                                show_legend: bool = False):
-
-    fig, ax = plt.subplots()
     fontsize = 18
     mpl.rcParams.update({'font.size': fontsize})
+    # TODO: fix me
 
     # getting data and if not available produce
-    for i, config_name in enumerate(config_names):
-        data_file = ROOT_PATH / 'testing' / f'probabilities_{config_name}.npy'
-        if not data_file.exists():
-            run_quantitative_inference(config_name)
-        data = np.load(data_file, allow_pickle=True)
-        data = data[()]
-        if group_name:
-            y_trues = data[group_name]['y_trues']
-            y_probs = data[group_name]['y_probs']
-        else:
-            for i, group_data in enumerate(data.values()):
-                if i == 0:
-                    y_trues = group_data['y_trues']
-                    y_probs = group_data['y_probs']
-                else:
-                    y_trues = np.concatenate((y_trues, group_data['y_trues']), axis=0)
-                    y_probs = np.concatenate((y_probs, group_data['y_probs']), axis=0)
-        prec, rec, thresholds = precision_recall_curve(y_trues, y_probs)
+    for i, region_name in enumerate(GROUP_NAMES):
+        fig, ax = plt.subplots()
+        for i, config_name in enumerate(config_names):
+            data = get_quantitative_data(config_name)
+            y_true = np.concatenate([site['y_true'] for site in data[region_name]], axis=0)
+            y_prob = np.concatenate([site['y_prob'] for site in data[region_name]], axis=0)
+            prec, rec, thresholds = precision_recall_curve(y_true, y_prob)
+            label = config_name if names is None else names[i]
+            ax.plot(rec, prec, label=label)
 
-        label = config_name if names is None else names[i]
-        ax.plot(rec, prec, label=label)
         ax.set_xlim((0, 1))
         ax.set_ylim((0, 1))
         ax.set_xlabel('Recall', fontsize=fontsize)
@@ -452,46 +397,29 @@ def plot_precision_recall_curve(config_names: list, group_name: str = None, name
         if show_legend:
             ax.legend()
 
-    prefix = group_name if group_name is not None else 'sn7'
-    plot_file = ROOT_PATH / 'plots' / 'precision_recall_curve' / f'{prefix}_{"".join(config_names)}.png'
-    plt.savefig(plot_file, dpi=300, bbox_inches='tight')
-    plt.show()
-    plt.close(fig)
+        plot_file = ROOT_PATH / 'plots' / 'precision_recall_curve' / f'{region_name}_{"".join(config_names)}.png'
+        plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+        plt.show()
+        plt.close(fig)
 
 
 def plot_threshold_dependency(config_names: list, names: list = None, show_legend: bool = False):
     fig, axs = plt.subplots(1, 3, figsize=(15, 5))
     fontsize = 18
     mpl.rcParams.update({'font.size': fontsize})
-
     # getting data and if not available produce
     for i, config_name in enumerate(config_names):
-        data_file = ROOT_PATH / 'testing' / f'probabilities_{config_name}.npy'
-        if not data_file.exists():
-            run_quantitative_inference(config_name)
-        data = np.load(data_file, allow_pickle=True)
-        data = data[()]
-        for i, group_data in enumerate(data.values()):
-            if i == 0:
-                y_trues = group_data['y_trues']
-                y_probs = group_data['y_probs']
-            else:
-                y_trues = np.concatenate((y_trues, group_data['y_trues']), axis=0)
-                y_probs = np.concatenate((y_probs, group_data['y_probs']), axis=0)
+        data = get_quantitative_data(config_name)
+        y_true = np.concatenate([site['y_true'] for region in data.values() for site in region], axis=0)
+        y_prob = np.concatenate([site['y_prob'] for region in data.values() for site in region], axis=0)
 
         f1_scores, precisions, recalls = [], [], []
         thresholds = np.linspace(0, 1, 101)
-        for thresh in thresholds:
-            y_preds = y_probs >= thresh
-            tp = np.sum(np.logical_and(y_trues, y_preds))
-            fp = np.sum(np.logical_and(y_preds, np.logical_not(y_trues)))
-            fn = np.sum(np.logical_and(y_trues, np.logical_not(y_preds)))
-            prec = tp / (tp + fp)
-            precisions.append(prec)
-            rec = tp / (tp + fn)
-            recalls.append(rec)
-            f1 = 2 * (prec * rec) / (prec + rec)
-            f1_scores.append(f1)
+        for thresh in tqdm(thresholds):
+            f1_scores.append(f1_score_from_prob(y_prob, y_true, thresh))
+            precisions.append(precsision_from_prob(y_prob, y_true, thresh))
+            recalls.append(recalll_from_prob(y_prob, y_true, thresh))
+
         label = config_name if names is None else names[i]
 
         axs[0].plot(thresholds, f1_scores, label=label)
@@ -571,11 +499,12 @@ if __name__ == '__main__':
     #                           ['SAR', 'Optical', 'Fusion', 'Fusion-DA'])
 
     config_name = 'fusiondual_semisupervised_extended'
-    config_names = ['sar', 'optical', 'fusion', 'fusiondual_semisupervised_extended']
+    config_names = ['sar', 'optical', 'fusion', 'fusionda_cons05']
     names = ['SAR', 'Optical', 'Fusion', 'Fusion-DA']
     # plot_activation_comparison(config_names, save_plots=True)
-    # for config_name in config_names:
-    #     show_quantitative_testing(config_name)
+    for config_name in config_names:
+        show_quantitative_testing(config_name)
+        pass
     aoi_ids = [
         'L15-0506E-1204N_2027_3374_13',
         'L15-0595E-1278N_2383_3079_13',
@@ -591,8 +520,7 @@ if __name__ == '__main__':
     ]
     # plot_activation_comparison_assembled(config_names, names, aoi_ids, save_plot=True)
     # plot_activation_comparison(config_names, save_plots=True)
-    # quantitative_testing('sar_confidence', True)
-    # plot_precision_recall_curve(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'], 'SA')
-    # plot_threshold_dependency(['optical', 'sar', 'fusion', 'fusiondual_semisupervised'])
+    # plot_precision_recall_curve(config_names, names)
+    # plot_threshold_dependency(config_names, names)
     # plot_activation_histograms(config_names)
-    plot_boxplots(config_names, names)
+    # plot_boxplots(config_names, names)

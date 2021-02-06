@@ -499,8 +499,8 @@ if __name__ == '__main__':
     #                           ['SAR', 'Optical', 'Fusion', 'Fusion-DA'])
 
     config_name = 'fusiondual_semisupervised_extended'
-    config_names = ['sar', 'optical', 'fusion', 'fusionda_cons05']
-    names = ['SAR', 'Optical', 'Fusion', 'Fusion-DA']
+    config_names = ['fusionda', 'fusionda_cons05', 'fusionda_cons1']
+    names = ['01', '05', '1']
     # plot_activation_comparison(config_names, save_plots=True)
     for config_name in config_names:
         show_quantitative_testing(config_name)

@@ -26,7 +26,8 @@ def pixelareakm2(n, resolution=10):
     area_km2 = area_m2 / 1e6
     return area_km2
 
-def train_validation_statistics(config_name: str):
+
+def run_train_validation_statistics(config_name: str):
     cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
 
     training_dataset = UrbanExtractionDataset(cfg, 'training', no_augmentations=True)
@@ -70,7 +71,66 @@ def train_validation_statistics(config_name: str):
         json.dump(output_data, f, ensure_ascii=False, indent=4)
 
 
-def test_statistics(config_name: str):
+def plot_train_validation(config_name: str):
+
+    data_file = ROOT_PATH / 'plots' / 'dataset' / f'train_validation_statistics_{config_name}.json'
+    if not data_file.exists():
+        run_train_validation_statistics(config_name)
+    data = load_json(data_file)
+
+    mpl.rcParams.update({'font.size': 20})
+    ypos = [0.5, 1, 1.5]
+    width = 0.2
+    fig, ax = plt.subplots(figsize=(10, 3.5))
+    neg = ax.barh(ypos[-1], data['train_background'], width, label='False', color=COLOR_FALSE, edgecolor='k')
+    pos = ax.barh(ypos[-1], data['train_builtup'], width, label='True', left=data['train_background'],
+                  color=COLOR_TRUE, edgecolor='k')
+    na = ax.barh(ypos[1], data['train_unlabeled'], width, label='N/A', color=COLOR_TRUE,
+                 hatch='/', edgecolor='k')
+    ax.barh(ypos[0], data['val_background'], width, label='False', color=COLOR_FALSE, edgecolor='k')
+    ax.barh(ypos[0], data['val_builtup'], width, label='True', left=data['val_background'], color=COLOR_TRUE,
+            edgecolor='k')
+
+    ax.ticklabel_format(style='sci')
+    ax.set_xlabel('Number of Pixels')
+
+    ax.set_yticks(ypos)
+    ax.set_yticklabels(['Validation', 'Train unlabeled', 'Train labeled'])
+    ax.legend((neg, pos, na), ('False', 'True', 'N/A'), loc='lower right', ncol=3, frameon=False,
+              handletextpad=0.8, columnspacing=1, handlelength=1)
+    plt.show()
+
+
+def show_validation_training(config_name: str):
+
+    data_file = ROOT_PATH / 'plots' / 'dataset' / f'train_validation_statistics_{config_name}.json'
+    if not data_file.exists():
+        run_train_validation_statistics(config_name)
+    data = load_json(data_file)
+
+    # train labeled
+    train_true = data['train_builtup']
+    train_false = data['train_background']
+    train_total = train_true + train_false
+    area_total = pixelareakm2(train_total)
+    percentage = train_true / (train_true + train_false) * 100
+    print(f'Train (labeled): {percentage:.0f} % ({train_total:.2E}, {area_total:.0f})')
+
+    # train unlabeled
+    train_unlabeled = data['train_unlabeled']
+    area_total = pixelareakm2(train_unlabeled)
+    print(f'Train (unlabeled): {train_unlabeled:.2E}, {area_total:.0f}')
+
+    # validation
+    val_true = data['val_builtup']
+    val_false = data['val_background']
+    val_total = val_true + val_false
+    area_total = pixelareakm2(val_total)
+    percentage = val_true / (val_true + val_false) * 100
+    print(f'Validation: {percentage:.0f} % ({val_total:.2E}, {area_total:.0f})')
+
+
+def run_test_statistics(config_name: str):
     cfg = config.load_cfg(CONFIG_PATH / f'{config_name}.yaml')
 
     test_dataset = SpaceNet7Dataset(cfg)
@@ -96,59 +156,14 @@ def test_statistics(config_name: str):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 
-def plot_train_validation(config_name: str):
-    mpl.rcParams.update({'font.size': 20})
-    data = load_json(ROOT_PATH / 'plots' / 'dataset' / f'train_validation_statistics_{config_name}.json')
-    ypos = [0.5, 1, 1.5]
-    width = 0.2
-    fig, ax = plt.subplots(figsize=(10, 3.5))
-    neg = ax.barh(ypos[-1], data['train_background'], width, label='False', color=COLOR_FALSE, edgecolor='k')
-    pos = ax.barh(ypos[-1], data['train_builtup'], width, label='True', left=data['train_background'],
-                  color=COLOR_TRUE, edgecolor='k')
-    na = ax.barh(ypos[1], data['train_unlabeled'], width, label='N/A', color=COLOR_TRUE,
-                 hatch='/', edgecolor='k')
-    ax.barh(ypos[0], data['val_background'], width, label='False', color=COLOR_FALSE, edgecolor='k')
-    ax.barh(ypos[0], data['val_builtup'], width, label='True', left=data['val_background'], color=COLOR_TRUE,
-            edgecolor='k')
-
-    ax.ticklabel_format(style='sci')
-    ax.set_xlabel('Number of Pixels')
-
-    ax.set_yticks(ypos)
-    ax.set_yticklabels(['Validation', 'Train unlabeled', 'Train labeled'])
-    ax.legend((neg, pos, na), ('False', 'True', 'N/A'), loc='lower right', ncol=3, frameon=False,
-              handletextpad=0.8, columnspacing=1, handlelength=1)
-    plt.show()
-
-
-def show_validation_training(config_name: str):
-    data = load_json(ROOT_PATH / 'plots' / 'dataset' / f'train_validation_statistics_{config_name}.json')
-
-    # train labeled
-    train_true = data['train_builtup']
-    train_false = data['train_background']
-    train_total = train_true + train_false
-    area_total = pixelareakm2(train_total)
-    percentage = train_true / (train_true + train_false) * 100
-    print(f'Train (labeled): {percentage:.0f} % ({train_total:.2E}, {area_total:.0f})')
-
-    # train unlabeled
-    train_unlabeled = data['train_unlabeled']
-    area_total = pixelareakm2(train_unlabeled)
-    print(f'Train (unlabeled): {train_unlabeled:.2E}, {area_total:.0f}')
-
-    # validation
-    val_true = data['val_builtup']
-    val_false = data['val_background']
-    val_total = val_true + val_false
-    area_total = pixelareakm2(val_total)
-    percentage = val_true / (val_true + val_false) * 100
-    print(f'Validation: {percentage:.0f} % ({val_total:.2E}, {area_total:.0f})')
-
-
 def plot_test(config_name: str):
+
+    data_file = ROOT_PATH / 'plots' / 'dataset' / f'test_statistics_{config_name}.json'
+    if not data_file.exists():
+        run_test_statistics(config_name)
+    data = load_json(data_file)
+
     mpl.rcParams.update({'font.size': 20})
-    data = load_json(ROOT_PATH / 'plots' / 'dataset' / f'test_statistics_{config_name}.json')
     width = 0.5
     ypos = np.arange(len(data.keys()))
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -170,7 +185,12 @@ def plot_test(config_name: str):
 
 
 def show_test(config_name: str):
-    data = load_json(ROOT_PATH / 'plots' / 'dataset' / f'test_statistics_{config_name}.json')
+
+    data_file = ROOT_PATH / 'plots' / 'dataset' / f'test_statistics_{config_name}.json'
+    if not data_file.exists():
+        run_test_statistics(config_name)
+    data = load_json(data_file)
+
     total = 0
     for group_name in data.keys():
         group_data = data[group_name]
@@ -179,16 +199,17 @@ def show_test(config_name: str):
         group_total = true + false
         total += group_total
         percentage = true / (true + false) * 100
-        print(f'{group_name}: {percentage:.0f} % BUA ({group_total:.0E} pixels)')
+        print(f'{group_name}: {percentage:.0f} % BUA ({group_total:.2E} pixels)')
     total_area = pixelareakm2(total)
     print(f'Test {total:.2E} {total_area:.0f}')
 
 
 if __name__ == '__main__':
-    config_name = 'fusiondual_semisupervised_extended'
+    config_name = 'fusionda_cons05'
     # train_validation_statistics(config_name)
-    plot_train_validation(config_name)
+    # plot_train_validation(config_name)
     # show_validation_training(config_name)
     # test_statistics(config_name)
     # plot_test(config_name)
-    # show_test(config_name)
+    show_test(config_name)
+    plot_test(config_name)

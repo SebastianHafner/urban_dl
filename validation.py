@@ -164,4 +164,4 @@ if __name__ == '__main__':
     names = ['SAR', 'Optical', 'Fusion', 'Fusion-DA']
     # plot_threshold_dependency(config_names, 'training', names)
     for config_name in config_names:
-        show_quantitative_results(config_name, 'validation')
+        show_quantitative_results(config_name, 'training')

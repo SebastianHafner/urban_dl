@@ -1,4 +1,4 @@
-_BASE_: "base.yaml"
+_BASE_: "fusion.yaml"
 DEBUG: False
 INFERENCE:
   CHECKPOINT: 20
@@ -6,14 +6,6 @@ INFERENCE:
     TRAIN: 0.00
     VALIDATION: 0.00
 
-MODEL:
-  TYPE: 'unet'
-  IN_CHANNELS: 12
-
-DATALOADER:
-  MODE: 'fusion'
-
 AUGMENTATION:
-  RANDOM_FLIP: True
-  RANDOM_ROTATE: True
   GAMMA_CORRECTION: False
+

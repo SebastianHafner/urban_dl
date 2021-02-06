@@ -13,7 +13,7 @@ MODEL:
   TYPE: 'dualstreamunet'
   OUT_CHANNELS: 1
   IN_CHANNELS: 12
-  LOSS_TYPE: 'IoULoss'
+  LOSS_TYPE: 'JaccardLikeLoss'
   POSITIVE_WEIGHT: 250
   NEGATIVE_WEIGHT: 1
   TOPOLOGY: [64, 128,]
@@ -23,7 +23,7 @@ MODEL:
     PRETRAINED_WEIGHTS: None
 
 DATALOADER:
-  NUM_WORKER: 16
+  NUM_WORKER: 8
   SHUFFLE: True
   LABEL: 'buildings'
   LABEL_THRESH: 0.0
@@ -48,7 +48,7 @@ DATASETS:
               'lima', 'paramaribo', 'libreville', 'djibuti', 'beirut', 'baghdad', 'athens', 'islamabad', 'hanoi',
               'bangkok', 'dhaka', 'bengaluru', 'taipeh', 'berlin', 'nanning', 'wuhan', 'daressalam', 'milano',
               'zhengzhou', 'hefei', 'xian', 'seoul', 'ibadan', 'benincity', 'abidjan', 'accra', 'amsterdam', 'riyadh',
-              'amman', 'damascus', 'nouakchott', 'prague']
+              'amman', 'damascus', 'nouakchott', 'prague', 'sanaa', 'dahmar', 'kuwaitcity', 'tindouf', 'tehran']
   TESTING: '/storage/shafner/urban_extraction/urban_dataset/sn7/'
 
 TRAINER:
@@ -68,7 +68,7 @@ AUGMENTATION:
   CHANNEL_DROPOUT: False
 
 CONSISTENCY_TRAINER:
-  LOSS_FACTOR: 1
+  LOSS_FACTOR: 0.1
   WEIGHT_DECAY: 0.998
   APPLY_THRESHOLD: False
-  CONSISTENCY_LOSS_TYPE: 'IoULoss'
+  CONSISTENCY_LOSS_TYPE: 'JaccardLikeLoss'

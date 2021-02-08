@@ -146,7 +146,7 @@ def plot_precision_recall_curve(site: str, config_names: list, names: list = Non
 
 
 if __name__ == '__main__':
-    config_name = 'fusionda_cons05'
+    config_name = 'fusionda_extended'
     cities = ['nanning', 'santiagodechile', 'beirut', 'lagos', 'newdehli']
     cities_igarss = ['stockholm', 'kampala', 'daressalam', 'sidney', 'newyork', 'sanfrancisco']
 

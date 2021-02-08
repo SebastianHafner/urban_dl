@@ -84,6 +84,7 @@ def get_quantitative_data(config_name: str, allow_run: bool = True):
             run_quantitative_inference(config_name)
         else:
             raise Exception('No data and not allowed to run quantitative inference!')
+    # run_quantitative_inference(config_name)
     data = np.load(data_file, allow_pickle=True)
     data = dict(data[()])
     return data
@@ -499,8 +500,8 @@ if __name__ == '__main__':
     #                           ['SAR', 'Optical', 'Fusion', 'Fusion-DA'])
 
     config_name = 'fusiondual_semisupervised_extended'
-    config_names = ['fusionda', 'fusionda_cons05', 'fusionda_cons1']
-    names = ['01', '05', '1']
+    config_names = ['sar', 'optical', 'fusion', 'fusionda_extended']
+    names = ['SAR', 'Optical', 'Fusion', 'Fusion-DA']
     # plot_activation_comparison(config_names, save_plots=True)
     for config_name in config_names:
         show_quantitative_testing(config_name)
@@ -523,4 +524,4 @@ if __name__ == '__main__':
     # plot_precision_recall_curve(config_names, names)
     # plot_threshold_dependency(config_names, names)
     # plot_activation_histograms(config_names)
-    # plot_boxplots(config_names, names)
+    plot_boxplots(config_names, names)

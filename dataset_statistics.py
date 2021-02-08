@@ -205,11 +205,13 @@ def show_test(config_name: str):
 
 
 if __name__ == '__main__':
-    config_name = 'fusionda_cons05'
+    config_name = 'fusionda_extended'
     # train_validation_statistics(config_name)
+    run_train_validation_statistics(config_name)
+    run_test_statistics(config_name)
     # plot_train_validation(config_name)
     # show_validation_training(config_name)
     # test_statistics(config_name)
     # plot_test(config_name)
-    show_test(config_name)
-    plot_test(config_name)
+    # show_test(config_name)
+    # plot_test(config_name)

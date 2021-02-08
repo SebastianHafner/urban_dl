@@ -57,6 +57,7 @@ def get_quantitative_data(config_name: str, run_type: str, allow_run: bool = Tru
             run_quantitative_inference(config_name, run_type)
         else:
             raise Exception('No data and not allowed to run quantitative inference!')
+    # run_quantitative_inference(config_name, run_type)
     data = np.load(data_file, allow_pickle=True)
     return data
 
@@ -160,8 +161,8 @@ def plot_threshold_dependency(config_names: list, run_type: str, names: list = N
 if __name__ == '__main__':
     config_name = 'optical'
 
-    config_names = ['sar', 'optical', 'fusion', 'fusionda_cons05']
+    config_names = ['sar', 'optical', 'fusion', 'fusionda_extended']
     names = ['SAR', 'Optical', 'Fusion', 'Fusion-DA']
     # plot_threshold_dependency(config_names, 'training', names)
     for config_name in config_names:
-        show_quantitative_results(config_name, 'training')
+        show_quantitative_results(config_name, 'validation')

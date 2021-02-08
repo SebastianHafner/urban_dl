@@ -504,7 +504,7 @@ if __name__ == '__main__':
     names = ['SAR', 'Optical', 'Fusion', 'Fusion-DA']
     # plot_activation_comparison(config_names, save_plots=True)
     for config_name in config_names:
-        show_quantitative_testing(config_name)
+        # show_quantitative_testing(config_name)
         pass
     aoi_ids = [
         'L15-0506E-1204N_2027_3374_13',
@@ -516,12 +516,22 @@ if __name__ == '__main__':
         'L15-1204E-1202N_4816_3380_13',
         'L15-0977E-1187N_3911_3441_13',
         'L15-1672E-1207N_6691_3363_13',
-
-
     ]
-    # plot_activation_comparison_assembled(config_names, names, aoi_ids, save_plot=True)
+
+    aoi_ids = [
+        'L15-0357E-1223N_1429_3296_13',  # na
+        'L15-0614E-0946N_2459_4406_13',  # sa
+        'L15-1014E-1375N_4056_2688_13',  # eu
+        'L15-0924E-1108N_3699_3757_13',  # ssa
+        'L15-1015E-1062N_4061_3941_13',  # ssa
+        'L15-0977E-1187N_3911_3441_13',  # naf_me
+        'L15-1204E-1202N_4816_3380_13',  # naf_me
+        'L15-1439E-1134N_5759_3655_13',  # as
+        'L15-1716E-1211N_6864_3345_13',  # as
+    ]
+    plot_activation_comparison_assembled(config_names, names, aoi_ids, save_plot=True)
     # plot_activation_comparison(config_names, save_plots=True)
     # plot_precision_recall_curve(config_names, names)
     # plot_threshold_dependency(config_names, names)
     # plot_activation_histograms(config_names)
-    plot_boxplots(config_names, names)
+    # plot_boxplots(config_names, names)

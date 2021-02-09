@@ -29,7 +29,7 @@ def run_quantitative_inference(config_name: str, run_type: str):
     # loading dataset from config (requires inference.json)
     dataset = UrbanExtractionDataset(cfg, dataset=run_type, no_augmentations=True, include_unlabeled=False)
 
-    y_probs = y_trues = None
+    y_probs, y_trues = [], []
 
     with torch.no_grad():
         for index in tqdm(range(len(dataset))):
@@ -38,12 +38,10 @@ def run_quantitative_inference(config_name: str, run_type: str):
             y_prob = net(img.unsqueeze(0))
             y_prob = torch.sigmoid(y_prob).flatten().cpu().numpy()
             y_true = sample['y'].flatten().cpu().numpy()
-            if y_probs is None or y_trues is None:
-                y_probs = y_prob
-                y_trues = y_true
-            y_probs = np.concatenate((y_probs, y_prob), axis=0)
-            y_trues = np.concatenate((y_trues, y_true), axis=0)
+            y_probs.append(y_prob)
+            y_trues.append(y_true)
 
+        y_probs, y_trues = np.concatenate(y_probs, axis=0), np.concatenate(y_trues, axis=0)
         output_file = ROOT_PATH / 'validation' / f'probabilities_{run_type}_{config_name}.npy'
         output_file.parent.mkdir(exist_ok=True)
         output_data = np.stack((y_trues, y_probs))
@@ -165,4 +163,4 @@ if __name__ == '__main__':
     names = ['SAR', 'Optical', 'Fusion', 'Fusion-DA']
     # plot_threshold_dependency(config_names, 'training', names)
     for config_name in config_names:
-        show_quantitative_results(config_name, 'training')
+        show_quantitative_results(config_name, 'validation')

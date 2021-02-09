@@ -504,7 +504,7 @@ if __name__ == '__main__':
     names = ['SAR', 'Optical', 'Fusion', 'Fusion-DA']
     # plot_activation_comparison(config_names, save_plots=True)
     for config_name in config_names:
-        # show_quantitative_testing(config_name)
+        show_quantitative_testing(config_name)
         pass
     aoi_ids = [
         'L15-0506E-1204N_2027_3374_13',
@@ -529,7 +529,7 @@ if __name__ == '__main__':
         'L15-1439E-1134N_5759_3655_13',  # as
         'L15-1716E-1211N_6864_3345_13',  # as
     ]
-    plot_activation_comparison_assembled(config_names, names, aoi_ids, save_plot=True)
+    # plot_activation_comparison_assembled(config_names, names, aoi_ids, save_plot=True)
     # plot_activation_comparison(config_names, save_plots=True)
     # plot_precision_recall_curve(config_names, names)
     # plot_threshold_dependency(config_names, names)

@@ -67,7 +67,7 @@ def run_training(cfg):
     save_checkpoints = cfg.SAVE_CHECKPOINTS
     steps_per_epoch = len(dataloader)
 
-    # for logging
+    # for loggingfusi
     thresholds = torch.linspace(0, 1, 101)
 
     for epoch in range(start_epoch + 1, epochs + 1):

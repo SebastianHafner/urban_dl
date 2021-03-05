@@ -4,20 +4,71 @@ from torchvision import transforms
 import json
 
 from pathlib import Path
-
+from abc import abstractmethod
 from utils.augmentations import *
 from utils.geotiff import *
 
 
+class AbstractDataset(torch.utils.data.Dataset):
+
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+        self.root_path = Path(cfg.DATASET.PATH)
+
+        # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
+        s1_bands = ['VV', 'VH']
+        self.s1_indices = self._get_indices(s1_bands, cfg.DATALOADER.SENTINEL1_BANDS)
+        s2_bands = ['B2', 'B3', 'B4', 'B5', 'B6', 'B6', 'B8', 'B8A', 'B11', 'B12']
+        self.s2_indices = self._get_indices(s2_bands, cfg.DATALOADER.SENTINEL2_BANDS)
+
+    @abstractmethod
+    def __getitem__(self, index: int) -> dict:
+        pass
+
+    @abstractmethod
+    def __len__(self) -> int:
+        pass
+
+    def _get_sentinel1_data(self, site, patch_id):
+        file = self.root_dir / site / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(file)
+        img = img[:, :, self.s1_indices]
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_sentinel2_data(self, site, patch_id):
+        file = self.root_dir / site / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(file)
+        img = img[:, :, self.s2_indices]
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_auxiliary_data(self, aux_input, site, patch_id):
+        file = self.root_dir / site / aux_input / f'{aux_input}_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(file)
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    def _get_label_data(self, site, patch_id):
+        label = self.cfg.DATALOADER.LABEL
+        threshold = self.cfg.DATALOADER.LABEL_THRESH
+
+        label_file = self.root_dir / site / label / f'{label}_{site}_{patch_id}.tif'
+        img, transform, crs = read_tif(label_file)
+        if threshold >= 0:
+            img = img > threshold
+
+        return np.nan_to_num(img).astype(np.float32), transform, crs
+
+    @staticmethod
+    def _get_indices(bands, selection):
+        return [bands.index(band) for band in selection]
+
+
 # dataset for urban extraction with building footprints
-class UrbanExtractionDataset(torch.utils.data.Dataset):
+class UrbanExtractionDataset(AbstractDataset):
 
     def __init__(self, cfg, dataset: str, include_projection: bool = False, no_augmentations: bool = False,
                  include_unlabeled: bool = True):
-        super().__init__()
-
-        self.cfg = cfg
-        self.root_dir = Path(cfg.DATASETS.PATH)
+        super().__init__(cfg)
 
         self.dataset = dataset
         if dataset == 'training':
@@ -43,16 +94,10 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
                 for sample in samples:
                     sample['is_labeled'] = False
             self.samples += samples
-            s1_bands = metadata['sentinel1_features']
-            s2_bands = metadata['sentinel2_features']
         self.length = len(self.samples)
         self.n_labeled = len([s for s in self.samples if s['is_labeled']])
 
         self.include_projection = include_projection
-
-        # creating boolean feature vector to subset sentinel 1 and sentinel 2 bands
-        self.s1_indices = self._get_indices(s1_bands, cfg.DATALOADER.SENTINEL1_BANDS)
-        self.s2_indices = self._get_indices(s2_bands, cfg.DATALOADER.SENTINEL2_BANDS)
 
     def __getitem__(self, index):
 
@@ -103,44 +148,58 @@ class UrbanExtractionDataset(torch.utils.data.Dataset):
 
         return item
 
-    def _get_sentinel1_data(self, site, patch_id):
-        file = self.root_dir / site / 'sentinel1' / f'sentinel1_{site}_{patch_id}.tif'
-        img, transform, crs = read_tif(file)
-        img = img[:, :, self.s1_indices]
-        return np.nan_to_num(img).astype(np.float32), transform, crs
-
-    def _get_sentinel2_data(self, site, patch_id):
-        file = self.root_dir / site / 'sentinel2' / f'sentinel2_{site}_{patch_id}.tif'
-        img, transform, crs = read_tif(file)
-        img = img[:, :, self.s2_indices]
-        return np.nan_to_num(img).astype(np.float32), transform, crs
-
-    def _get_auxiliary_data(self, aux_input, site, patch_id):
-        file = self.root_dir / site / aux_input / f'{aux_input}_{site}_{patch_id}.tif'
-        img, transform, crs = read_tif(file)
-        return np.nan_to_num(img).astype(np.float32), transform, crs
-
-    def _get_label_data(self, site, patch_id):
-        label = self.cfg.DATALOADER.LABEL
-        threshold = self.cfg.DATALOADER.LABEL_THRESH
-
-        label_file = self.root_dir / site / label / f'{label}_{site}_{patch_id}.tif'
-        img, transform, crs = read_tif(label_file)
-        if threshold >= 0:
-            img = img > threshold
-
-        return np.nan_to_num(img).astype(np.float32), transform, crs
-
-    @ staticmethod
-    def _get_indices(bands, selection):
-        return [bands.index(band) for band in selection]
-
     def __len__(self):
         return self.length
 
     def __str__(self):
         labeled_perc = self.n_labeled / self.length * 100
         return f'Dataset with {self.length} samples ({labeled_perc:.1f} % labeled) across {len(self.sites)} sites.'
+
+
+class SelfsupervisionDataset(AbstractDataset):
+
+    def __init__(self, cfg, dataset: str, no_augmentations: bool = False):
+        super().__init__(cfg)
+
+        self.sites = list(cfg.DATASETS.TRAINING) if dataset == 'training' else list(cfg.DATASETS.VALIDATION)
+        self.no_augmentations = no_augmentations
+        self.transform = transforms.Compose([Numpy2Torch()]) if no_augmentations else compose_transformations(cfg)
+
+        self.samples = []
+        for site in self.sites:
+            samples_file = self.root_dir / site / 'samples.json'
+            metadata = load_json(samples_file)
+            samples = metadata['samples']
+            self.samples += samples
+        self.length = len(self.samples)
+
+    def __getitem__(self, index):
+
+        # loading metadata of sample
+        sample = self.samples[index]
+
+        site = sample['site']
+        patch_id = sample['patch_id']
+
+        s1_img, _, _ = self._get_sentinel1_data(site, patch_id)
+        s2_img, _, _ = self._get_sentinel2_data(site, patch_id)
+
+        s1_img, s2_img = self.transform((s1_img, s2_img))
+
+        item = {
+            'y': s1_img,
+            'x': s2_img,
+            'site': site,
+            'patch_id': patch_id,
+        }
+
+        return item
+
+    def __len__(self):
+        return self.length
+
+    def __str__(self):
+        return f'Dataset with {self.length} samples across {len(self.sites)} sites.'
 
 
 # dataset for urban extraction with building footprints
@@ -750,4 +809,7 @@ class GHSLDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.length
+
+
+
 

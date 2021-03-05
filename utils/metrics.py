@@ -14,17 +14,8 @@ def progress(count, total, status=''):
     sys.stdout.flush()  # As suggested by Rom Ruben (see: http://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console/27871113#comment50529068_27871113)
 
 
-class MultiThresholdMetric():
+class MultiThresholdMetric(object):
     def __init__(self, threshold):
-
-        # FIXME Does not operate properly
-
-        '''
-        Takes in rasterized and batched images
-        :param y_true: [B, H, W]
-        :param y_pred: [B, C, H, W]
-        :param threshold: [Thresh]
-        '''
 
         self._thresholds = threshold[ :, None, None, None, None] # [Tresh, B, C, H, W]
         self._data_dims = (-1, -2, -3, -4) # For a B/W image, it should be [Thresh, B, C, H, W],
@@ -165,6 +156,35 @@ def recalll_from_prob(y_prob: np.ndarray, y_true: np.ndarray, threshold: float =
     tp = true_positives_from_prob(y_prob, y_true, threshold)
     fn = false_negatives_from_prob(y_prob, y_true, threshold)
     return tp / (tp + fn)
+
+
+class RegressionEvaluation(object):
+    def __init__(self):
+        self.predictions = []
+        self.labels = []
+
+    def add_sample(self, logits: torch.tensor, label: torch.tensor):
+        pred = torch.sigmoid(logits)
+        pred = pred.float().detach().cpu().numpy()
+
+        label = label.float().detach().cpu().numpy()
+
+        self.predictions.extend(pred.flatten())
+        self.labels.extend(label.flatten())
+
+    def reset(self):
+        self.predictions = []
+        self.labels = []
+
+    def root_mean_square_error(self) -> float:
+        return np.sqrt(np.sum(np.square(np.array(self.predictions) - np.array(self.labels))) / len(self.labels))
+
+    def class_statistics(self, class_: int) -> tuple:
+        y_pred = np.array(self.predictions) == class_
+        y_true = np.array(self.labels) == class_
+        n_pred = np.sum(y_pred)
+        n_true = np.sum(y_true)
+        return n_pred, n_true
 
 
 if __name__ == '__main__':

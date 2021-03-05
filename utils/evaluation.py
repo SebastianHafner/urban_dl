@@ -10,8 +10,6 @@ from utils import datasets, metrics
 # can be used to apply best training threshold to validation set
 def model_evaluation(net, cfg, device, thresholds: torch.Tensor, run_type: str, epoch: float, step: int,
                      max_samples: int = None, specific_index: int = None):
-    y_true_set = []
-    y_pred_set = []
 
     thresholds = thresholds.to(device)
     measurer = metrics.MultiThresholdMetric(thresholds)
@@ -19,9 +17,6 @@ def model_evaluation(net, cfg, device, thresholds: torch.Tensor, run_type: str, 
     def evaluate(y_true, y_pred):
         y_true = y_true.detach()
         y_pred = y_pred.detach()
-        y_true_set.append(y_true.cpu())
-        y_pred_set.append(y_pred.cpu())
-
         measurer.add_sample(y_true, y_pred)
 
     dataset = datasets.UrbanExtractionDataset(cfg=cfg, dataset=run_type, no_augmentations=True,
@@ -65,6 +60,29 @@ def model_evaluation(net, cfg, device, thresholds: torch.Tensor, run_type: str, 
                    })
 
     return argmax_f1.item()
+
+
+# for regression
+def model_evaluation_regression(net, cfg, device, run_type: str, epoch: float, step: int, max_samples: int = None):
+
+    measurer = metrics.RegressionEvaluation()
+
+    def evaluate(y_true, y_pred):
+        y_true = y_true.detach()
+        y_pred = y_pred.detach()
+        measurer.add_sample(y_true, y_pred)
+
+    dataset = datasets.SelfsupervisionDataset(cfg=cfg, dataset=run_type, no_augmentations=True)
+    inference_loop(net, cfg, device, evaluate, max_samples=max_samples, dataset=dataset)
+
+    print(f'Computing {run_type} RMSE ', end=' ', flush=True)
+    rmse = measurer.compute_rmse()
+    print(f'{rmse.item():.3f}', flush=True)
+
+    if not cfg.DEBUG:
+        wandb.log({f'{run_type} RMSE': rmse.item(),
+                   'step': step, 'epoch': epoch,
+                   })
 
 
 def model_testing(net, cfg, device, argmax, step, epoch):

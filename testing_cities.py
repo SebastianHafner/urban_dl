@@ -166,8 +166,8 @@ if __name__ == '__main__':
               'lima', 'paramaribo', 'libreville', 'djibuti', 'beirut', 'baghdad', 'athens', 'islamabad', 'hanoi',
               'bangkok', 'dhaka', 'bengaluru', 'taipeh', 'berlin', 'nanning', 'wuhan', 'daressalam', 'milano',
                   'calgary', 'newyork', 'sanfrancisco', 'vancouver']
-    cities_paper = ['islamabad', 'manila', 'newdehli', 'wuhan', 'madrid', 'mexicocity', 'sanfrancisco', 'lagos',
-                    'kairo', 'shanghai', 'riyadh', 'accra']
+    cities_paper = ['manila', 'newdehli', 'wuhan', 'madrid', 'mexicocity', 'sanfrancisco', 'lagos',
+                    'kairo', 'shanghai', 'riyadh', 'kigali', 'riodejanairo', 'mumbai']
 
     for i, city in enumerate(cities_paper):
         legend = True if city == 'stockholm' else False
